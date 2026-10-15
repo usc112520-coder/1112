@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>校外參訪點名系統 (最新完整版)</title>
+    <title>智冠校外參訪點名系統</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome Icons CDN -->
@@ -34,7 +34,7 @@
                     <span class="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-white text-base shadow-sm">
                         <i class="fa-solid fa-clipboard-user"></i>
                     </span>
-                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight">校外參訪點名系統</h1>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight">智冠校外參訪點名系統</h1>
                 </div>
                 <div class="flex items-center gap-2 mt-1.5 flex-wrap">
                     <p class="text-xs sm:text-sm text-slate-400 font-normal">去程點名與回程離隊登記管理</p>
@@ -68,6 +68,12 @@
                 </button>
             </div>
         </header>
+
+        <!-- Initial Sheet Sync Loading Banner -->
+        <div v-if="isLoadingData" class="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-medium flex items-center justify-center gap-2 shadow-sm animate-pulse">
+            <i class="fa-solid fa-arrows-rotate animate-spin text-emerald-600"></i>
+            <span>跨裝置開啟中，正在獲取 Google 試算表最新資料...</span>
+        </div>
 
         <!-- Role 1: Student Check-in Mode -->
         <main v-if="activeRole === 'student'" class="space-y-4">
@@ -399,7 +405,7 @@
             </div>
         </div>
 
-        <!-- Modal 1: Teacher Auth Modal (Hide password text) -->
+        <!-- Modal 1: Teacher Auth Modal (Hidden password text) -->
         <div v-if="showAuthModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div class="bg-white rounded-2xl max-w-xs w-full p-6 shadow-xl space-y-4 border border-slate-100">
                 <div class="text-center space-y-1">
@@ -658,6 +664,7 @@
                 const showQrModal = ref(false);
                 const showReturnControlModal = ref(false);
                 const showCloudModal = ref(false);
+                const isLoadingData = ref(false);
 
                 const teacherPinInput = ref('');
                 const surveyUrl = ref('https://forms.gle/sample');
@@ -787,7 +794,7 @@
                 };
 
                 const fetchFromGas = async () => {
-                    if (!gasUrl.value || isPollingPaused) return;
+                    if (!gasUrl.value || isPollingPaused) return false;
                     try {
                         // 加入時間戳記 _t 避免手機瀏覽器 (LINE/Safari) 強烈快取舊資料
                         const separator = gasUrl.value.includes('?') ? '&' : '?';
@@ -798,11 +805,13 @@
                             if (Array.isArray(data)) {
                                 roster.value = data;
                                 saveLocalStorage();
+                                return true;
                             }
                         }
                     } catch (e) {
                         console.error('GAS fetch error:', e);
                     }
+                    return false;
                 };
 
                 const postToGas = async (payload) => {
@@ -1192,9 +1201,9 @@
                     showToast('Excel 報表已成功匯出');
                 };
 
-                onMounted(() => {
+                onMounted(async () => {
                     try {
-                        // 優先檢查網址是否帶有 gasUrl 參數（例如掃 QR Code 進入）
+                        // 1. 優先檢查網址是否帶有 gasUrl 參數（例如掃 QR Code 進入）
                         const urlParams = new URLSearchParams(window.location.search);
                         const urlGasParam = urlParams.get('gasUrl') || urlParams.get('gas');
 
@@ -1215,11 +1224,7 @@
                             }
                         }
 
-                        if (gasUrl.value) {
-                            fetchFromGas();
-                            startGasPolling();
-                        }
-
+                        // 2. 讀取本機快取與設定
                         const savedSurvey = localStorage.getItem(SURVEY_KEY);
                         if (savedSurvey !== null && savedSurvey !== '') {
                             surveyUrl.value = savedSurvey;
@@ -1246,13 +1251,26 @@
                         } else {
                             roster.value = [...defaultRoster];
                         }
+
+                        // 3. 跨裝置開啟時，第一時間優先連線試算表獲取最新資料
+                        if (gasUrl.value) {
+                            isLoadingData.value = true;
+                            const success = await fetchFromGas();
+                            isLoadingData.value = false;
+                            if (success) {
+                                showToast('已成功連線並同步試算表最新資料');
+                            }
+                            startGasPolling();
+                        }
                     } catch (e) {
+                        console.error('onMounted error:', e);
+                        isLoadingData.value = false;
                         roster.value = [...defaultRoster];
                     }
                 });
 
                 return {
-                    roster, activeRole,
+                    roster, activeRole, isLoadingData,
                     showAuthModal, showSurveyModal, showImportModal, showAddModal, showQrModal, showReturnControlModal, showCloudModal, confirmDialog,
                     teacherPinInput, surveyUrl, surveyUrlInput, returnControl, returnControlInput, isReturnOpen,
                     gasUrl, gasUrlInput, supabaseConfig, saveGasConfig, promptClearCloudConfig,
