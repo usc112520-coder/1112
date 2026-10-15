@@ -561,7 +561,9 @@
                 const searchedStudents = computed(() => {
                     const query = studentSearchInput.value.trim().toLowerCase();
                     if (!query) return [];
-                    return roster.value.filter(s => s.name.toLowerCase().includes(query));
+                    return roster.value
+                        .filter(s => s.name.toLowerCase().includes(query))
+                        .sort((a, b) => (a.className || '').localeCompare(b.className || '', 'zh-TW', { numeric: true }));
                 });
 
                 const filteredTeacherRoster = computed(() => {
@@ -581,7 +583,11 @@
                         list = list.filter(s => s.returnIntent === '自行離開');
                     }
 
-                    return list;
+                    return [...list].sort((a, b) => {
+                        const classCompare = (a.className || '').localeCompare(b.className || '', 'zh-TW', { numeric: true });
+                        if (classCompare !== 0) return classCompare;
+                        return (a.name || '').localeCompare(b.name || '', 'zh-TW', { numeric: true });
+                    });
                 });
 
                 const outboundCount = computed(() => roster.value.filter(s => s.outboundStatus === '已上車').length);
@@ -601,7 +607,17 @@
                     }, 3000);
                 };
 
+                // Save to local storage for immediate offline/hybrid persistence
+                const saveLocalStorage = () => {
+                    try {
+                        localStorage.setItem('fieldtrip_roster_' + appId, JSON.stringify(roster.value));
+                    } catch (e) {
+                        console.error('Local storage save error:', e);
+                    }
+                };
+
                 const updateStudentInCloud = async (student) => {
+                    saveLocalStorage();
                     if (!auth.currentUser) return;
                     try {
                         const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', String(student.id));
@@ -621,6 +637,7 @@
                 };
 
                 const deleteStudentFromCloud = async (id) => {
+                    saveLocalStorage();
                     if (!auth.currentUser) return;
                     try {
                         const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', String(id));
@@ -640,12 +657,12 @@
                     }
                 };
 
-                const batchUploadToCloud = async (studentList, replace = false) => {
+                const batchUploadToCloud = async (studentList, replace = false, oldList = []) => {
                     if (!auth.currentUser) return;
                     try {
                         const batch = writeBatch(db);
-                        if (replace) {
-                            for (const existing of roster.value) {
+                        if (replace && oldList.length > 0) {
+                            for (const existing of oldList) {
                                 const refToDelete = doc(db, 'artifacts', appId, 'public', 'data', 'students', String(existing.id));
                                 batch.delete(refToDelete);
                             }
@@ -796,12 +813,39 @@
                             const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
                             const importedList = jsonData.map((row, idx) => {
-                                const className = row['班級'] || row['科系'] || row['系所'] || row['班級/科系'] || '參訪成員';
-                                const name = row['姓名'] || row['名字'] || row['學生姓名'] || `學員${idx+1}`;
+                                let className = '';
+                                let name = '';
+                                
+                                // Smart fuzzy header detection
+                                for (const key of Object.keys(row)) {
+                                    const cleanKey = String(key).trim().replace(/\s+/g, '');
+                                    const val = String(row[key]).trim();
+                                    if (!val || val === 'undefined') continue;
+                                    
+                                    if (!className && (cleanKey.includes('班') || cleanKey.includes('系') || cleanKey.includes('組') || cleanKey.includes('處') || cleanKey.includes('單位'))) {
+                                        className = val;
+                                    } else if (!name && (cleanKey.includes('名') || cleanKey.includes('姓') || cleanKey.includes('員') || cleanKey.includes('生'))) {
+                                        name = val;
+                                    }
+                                }
+                                
+                                // Fallback matching by position if header matching missed
+                                if (!name) {
+                                    const values = Object.values(row).map(v => String(v).trim()).filter(Boolean);
+                                    if (values.length >= 2) {
+                                        className = values[0];
+                                        name = values[1];
+                                    } else if (values.length === 1) {
+                                        name = values[0];
+                                    }
+                                }
+
+                                if (!className) className = '參訪成員';
+
                                 return {
                                     id: String(Date.now() + idx + Math.floor(Math.random() * 1000)),
-                                    className: String(className).trim(),
-                                    name: String(name).trim(),
+                                    className,
+                                    name,
                                     outboundStatus: '未簽到',
                                     outboundTime: '',
                                     returnIntent: '搭車返回',
@@ -809,14 +853,23 @@
                                     returnTime: '',
                                     returnNote: ''
                                 };
-                            });
+                            }).filter(s => s.name && s.name.trim() !== '');
 
                             if (importedList.length === 0) {
-                                showToast('檔案中未找到有效欄位（需有「班級」與「姓名」）');
+                                showToast('無法在檔案中辨識有效姓名，請檢查 Excel 表格內容');
                                 return;
                             }
 
-                            batchUploadToCloud(importedList, importOption.value === 'replace');
+                            const oldRoster = [...roster.value];
+                            // Update local UI state immediately
+                            if (importOption.value === 'replace') {
+                                roster.value = importedList;
+                            } else {
+                                roster.value = [...roster.value, ...importedList];
+                            }
+                            saveLocalStorage();
+
+                            batchUploadToCloud(importedList, importOption.value === 'replace', oldRoster);
                             showImportModal.value = false;
                             showToast(`成功匯入 ${importedList.length} 筆資料！`);
                         } catch (err) {
@@ -864,14 +917,29 @@
                         return;
                     }
 
-                    batchUploadToCloud(importedList, importOption.value === 'replace');
+                    const oldRoster = [...roster.value];
+                    // Update local UI state immediately
+                    if (importOption.value === 'replace') {
+                        roster.value = importedList;
+                    } else {
+                        roster.value = [...roster.value, ...importedList];
+                    }
+                    saveLocalStorage();
+
+                    batchUploadToCloud(importedList, importOption.value === 'replace', oldRoster);
                     pastedText.value = '';
                     showImportModal.value = false;
                     showToast(`成功匯入 ${importedList.length} 筆資料！`);
                 };
 
                 const exportToExcel = () => {
-                    const dataToExport = roster.value.map((s, index) => ({
+                    const sortedRoster = [...roster.value].sort((a, b) => {
+                        const classCompare = (a.className || '').localeCompare(b.className || '', 'zh-TW', { numeric: true });
+                        if (classCompare !== 0) return classCompare;
+                        return (a.name || '').localeCompare(b.name || '', 'zh-TW', { numeric: true });
+                    });
+
+                    const dataToExport = sortedRoster.map((s, index) => ({
                         '項次': index + 1,
                         '班級': s.className || '',
                         '姓名': s.name || '',
@@ -890,6 +958,19 @@
                 };
 
                 onMounted(async () => {
+                    // Load local storage backup first for instant UI response
+                    try {
+                        const localData = localStorage.getItem('fieldtrip_roster_' + appId);
+                        if (localData) {
+                            const parsed = JSON.parse(localData);
+                            if (Array.isArray(parsed) && parsed.length > 0) {
+                                roster.value = parsed;
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Local storage load error", e);
+                    }
+
                     // Firebase Auth
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -930,14 +1011,15 @@
 
                             if (items.length > 0 || hasInit || isInitialized) {
                                 roster.value = items;
-                            } else {
-                                // First time system setup only
+                                saveLocalStorage();
+                            } else if (roster.value.length === 0) {
+                                // First time system setup only if no local or cloud data
                                 await batchUploadToCloud(defaultRoster, true);
                             }
                         }, (err) => {
                             console.error("Roster listener error:", err);
                         });
-                    } else {
+                    } else if (roster.value.length === 0) {
                         roster.value = [...defaultRoster];
                     }
                 });
