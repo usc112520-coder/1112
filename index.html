@@ -348,7 +348,7 @@
                             </select>
 
                             <!-- Delete Button -->
-                            <button @click="deleteStudent(student.id)" class="p-1.5 text-slate-400 hover:text-rose-600 transition">
+                            <button @click="deleteStudent(student.id)" class="p-1.5 text-slate-400 hover:text-rose-600 transition" title="刪除此成員">
                                 <i class="fa-solid fa-trash-can text-sm"></i>
                             </button>
                         </div>
@@ -376,7 +376,7 @@
 
                 <div class="space-y-3 text-xs text-slate-600">
                     <p class="leading-relaxed">
-                        貼上您的 <strong class="text-slate-900">Google Apps Script 網頁應用程式 URL</strong>，全班點名紀錄將自動儲存並寫入您的 Google 試算表中！
+                        貼上您的 <strong class="text-slate-900">Google Apps Script 網頁應用程式 URL</strong>，系統將自動讀取與寫入您試算表中的學生名單！
                     </p>
 
                     <div>
@@ -386,8 +386,8 @@
                     </div>
 
                     <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[11px] space-y-1">
-                        <div class="font-bold text-slate-700">💡 尚未建立 Google 試算表腳本？</div>
-                        <p class="text-slate-500">請參考專屬教學檔案 <code class="text-slate-800 font-mono font-semibold">google_apps_script_guide.md</code>，3 分鐘完成設定！</p>
+                        <div class="font-bold text-slate-700">💡 提示：試算表格式說明</div>
+                        <p class="text-slate-500">請確保試算表欄位順序為：<code class="text-slate-800 font-mono font-semibold">編號 | 班級 | 姓名 | 去程狀態 | 去程時間 | 回程意願 | 回程狀態 | 回程時間 | 離隊備註</code></p>
                     </div>
                 </div>
 
@@ -406,7 +406,7 @@
                         <i class="fa-solid fa-lock"></i>
                     </span>
                     <h3 class="text-base font-bold text-slate-800">教師管理驗證</h3>
-                    <p class="text-xs text-slate-400">請輸入管理密碼進入控制台</p>
+                    <p class="text-xs text-slate-400">預設密碼為 1987</p>
                 </div>
                 <div>
                     <input v-model="teacherPinInput" type="password" placeholder="請輸入密碼" @keyup.enter="authenticateTeacher" 
@@ -573,9 +573,7 @@
                 const defaultRoster = [
                     { id: '1', className: '資訊一甲', name: '王小明', outboundStatus: '未簽到', outboundTime: '', returnIntent: '搭車返回', returnStatus: '未簽到', returnTime: '', returnNote: '' },
                     { id: '2', className: '外文二乙', name: '陳雅婷', outboundStatus: '未簽到', outboundTime: '', returnIntent: '搭車返回', returnStatus: '未簽到', returnTime: '', returnNote: '' },
-                    { id: '3', className: '電機三甲', name: '李大華', outboundStatus: '已上車', outboundTime: '08:15:22', returnIntent: '自行離開', returnStatus: '已完成', returnTime: '16:30:10', returnNote: '與家長同行' },
-                    { id: '4', className: '企管二甲', name: '張建國', outboundStatus: '未簽到', outboundTime: '', returnIntent: '搭車返回', returnStatus: '未簽到', returnTime: '', returnNote: '' },
-                    { id: '5', className: '設計一乙', name: '林心怡', outboundStatus: '已上車', outboundTime: '08:18:05', returnIntent: '搭車返回', returnStatus: '未簽到', returnTime: '', returnNote: '' }
+                    { id: '3', className: '電機三甲', name: '李大華', outboundStatus: '已上車', outboundTime: '08:15:22', returnIntent: '自行離開', returnStatus: '已完成', returnTime: '16:30:10', returnNote: '與家長同行' }
                 ];
 
                 const roster = ref([]);
@@ -597,6 +595,7 @@
                 const gasUrl = ref('');
                 const gasUrlInput = ref('');
                 let pollTimer = null;
+                let isPollingPaused = false; // 暫停同步旗標，防止刪除或改動時被即時觸發覆蓋
 
                 const studentSearchInput = ref('');
                 const teacherSearchInput = ref('');
@@ -635,14 +634,14 @@
                     }, 2500);
                 };
 
-                // Google Apps Script Polling & Fetch Logic
+                // Google Apps Script Fetch Logic
                 const fetchFromGas = async () => {
-                    if (!gasUrl.value) return;
+                    if (!gasUrl.value || isPollingPaused) return;
                     try {
                         const res = await fetch(gasUrl.value);
                         if (res.ok) {
                             const data = await res.json();
-                            if (Array.isArray(data) && data.length > 0) {
+                            if (Array.isArray(data)) {
                                 roster.value = data;
                                 saveLocalStorage();
                             }
@@ -666,6 +665,13 @@
                     }
                 };
 
+                const pausePollingTemporarily = () => {
+                    isPollingPaused = true;
+                    setTimeout(() => {
+                        isPollingPaused = false;
+                    }, 3500); // 暫停 3.5 秒讓雲端運算處理完畢
+                };
+
                 const saveGasConfig = () => {
                     const url = gasUrlInput.value.trim();
                     if (!url.startsWith('https://script.google.com/')) {
@@ -675,7 +681,7 @@
                     gasUrl.value = url;
                     localStorage.setItem(GAS_URL_KEY, url);
                     showGasModal.value = false;
-                    fetchFromGas(); // 優先拉取試算表名單，不發送預設名單進行覆蓋
+                    fetchFromGas(); 
                     startGasPolling();
                     showToast('🟢 已啟用 Google 試算表即時同步');
                 };
@@ -693,7 +699,7 @@
                 const startGasPolling = () => {
                     if (pollTimer) clearInterval(pollTimer);
                     if (gasUrl.value) {
-                        pollTimer = setInterval(fetchFromGas, 8000); // 每 8 秒同步一次
+                        pollTimer = setInterval(fetchFromGas, 8000);
                     }
                 };
 
@@ -799,6 +805,7 @@
                 };
 
                 const toggleOutbound = (student) => {
+                    pausePollingTemporarily();
                     const newStatus = student.outboundStatus === '已上車' ? '未簽到' : '已上車';
                     student.outboundStatus = newStatus;
                     student.outboundTime = newStatus === '已上車' ? getCurrentTime() : '';
@@ -808,6 +815,7 @@
                 };
 
                 const toggleReturn = (student) => {
+                    pausePollingTemporarily();
                     const newStatus = student.returnStatus === '已完成' ? '未簽到' : '已完成';
                     student.returnStatus = newStatus;
                     student.returnTime = newStatus === '已完成' ? getCurrentTime() : '';
@@ -818,6 +826,7 @@
                 };
 
                 const setReturnIntent = (student, intent) => {
+                    pausePollingTemporarily();
                     student.returnIntent = intent;
                     saveLocalStorage();
                     postToGas(student);
@@ -825,6 +834,7 @@
                 };
 
                 const updateStudent = (student) => {
+                    pausePollingTemporarily();
                     saveLocalStorage();
                     postToGas(student);
                 };
@@ -834,6 +844,7 @@
                         showToast('請輸入姓名');
                         return;
                     }
+                    pausePollingTemporarily();
                     const item = {
                         id: Date.now().toString(),
                         className: newPerson.value.className.trim() || '參訪成員',
@@ -854,16 +865,21 @@
                 };
 
                 const deleteStudent = (id) => {
-                    if (confirm('確定要刪除此成員紀錄嗎？')) {
+                    const studentToDelete = roster.value.find(s => s.id === id);
+                    const name = studentToDelete ? studentToDelete.name : '此成員';
+                    if (confirm(`確定要刪除「${name}」的紀錄嗎？`)) {
+                        pausePollingTemporarily();
                         roster.value = roster.value.filter(s => s.id !== id);
                         saveLocalStorage();
-                        postToGas(roster.value);
-                        showToast('已刪除成員');
+                        // 發送明確刪除指令給 Apps Script
+                        postToGas({ type: 'delete', id: id, name: studentToDelete ? studentToDelete.name : '' });
+                        showToast(`已刪除 ${name}`);
                     }
                 };
 
                 const resetAllStatus = () => {
                     if (confirm('確定要重置所有人的簽到狀態嗎？名單將會保留。')) {
+                        pausePollingTemporarily();
                         roster.value.forEach(s => {
                             s.outboundStatus = '未簽到';
                             s.outboundTime = '';
@@ -928,6 +944,7 @@
                                 return;
                             }
 
+                            pausePollingTemporarily();
                             if (importOption.value === 'replace') {
                                 roster.value = parsedList;
                             } else {
@@ -990,6 +1007,7 @@
                         return;
                     }
 
+                    pausePollingTemporarily();
                     if (importOption.value === 'replace') {
                         roster.value = parsedList;
                     } else {
@@ -1054,7 +1072,6 @@
                             roster.value = JSON.parse(savedRoster);
                         } else {
                             roster.value = [...defaultRoster];
-                            saveLocalStorage();
                         }
 
                         const savedGasUrl = localStorage.getItem(GAS_URL_KEY);
