@@ -3,24 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>校外參訪點名系統</title>
-    <!-- Tailwind CSS -->
+    <title>校外參訪點名系統 (最新完整版)</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome Icons -->
+    <!-- Font Awesome Icons CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Vue 3 -->
+    <!-- Vue 3 CDN -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <!-- SheetJS for Excel import/export -->
+    <!-- SheetJS CDN for Excel import and export -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <!-- QRCode JS -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
         [v-cloak] { display: none !important; }
 
-        .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
-        .toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, 15px); }
+        .toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, 20px) scale(0.95); }
+        
+        .modal-enter-active, .modal-leave-active { transition: all 0.25s ease; }
+        .modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.97); }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen pb-12 selection:bg-slate-800 selection:text-white">
@@ -35,13 +36,17 @@
                     </span>
                     <h1 class="text-xl sm:text-2xl font-bold tracking-tight">校外參訪點名系統</h1>
                 </div>
-                <div class="flex items-center gap-2 mt-1.5">
+                <div class="flex items-center gap-2 mt-1.5 flex-wrap">
                     <p class="text-xs sm:text-sm text-slate-400 font-normal">去程點名與回程離隊登記管理</p>
-                    <!-- Cloud Sync Indicator -->
-                    <span v-if="gasUrl" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-900/80 text-emerald-300 border border-emerald-700/50">
+                    
+                    <!-- Cloud Sync Indicator Badges -->
+                    <span v-if="gasUrl" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-950 text-emerald-300 border border-emerald-700/60">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Google 試算表同步中
                     </span>
-                    <span v-else class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-900/60 text-amber-300 border border-amber-700/50">
+                    <span v-else-if="supabaseConfig.url" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-950 text-emerald-300 border border-emerald-700/60">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Supabase 即時同步中
+                    </span>
+                    <span v-else class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-950 text-amber-300 border border-amber-700/60">
                         <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> 單機模式 (本機儲存)
                     </span>
                 </div>
@@ -70,7 +75,7 @@
             <div class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 space-y-4">
                 <div class="relative max-w-md mx-auto">
                     <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-                    <input v-model="studentSearchInput" type="text" placeholder="請輸入個人姓名進行簽到..." 
+                    <input v-model="studentSearchInput" type="text" placeholder="請輸入姓名搜尋以進行簽到..." 
                            class="w-full pl-11 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:border-slate-800 focus:ring-1 focus:ring-slate-800 transition outline-none">
                     <button v-if="studentSearchInput" @click="studentSearchInput = ''" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
                         <i class="fa-solid fa-xmark text-sm"></i>
@@ -239,11 +244,11 @@
                     </h2>
 
                     <div class="flex items-center gap-2 flex-wrap">
-                        <button @click="showGasModal = true" 
-                                :class="gasUrl ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'"
+                        <button @click="showCloudModal = true" 
+                                :class="gasUrl || supabaseConfig.url ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'"
                                 class="px-3 py-1.5 border font-medium rounded-xl text-xs transition flex items-center gap-1.5">
-                            <i class="fa-solid fa-file-excel text-xs"></i>
-                            <span>{{ gasUrl ? '🟢 Google 試算表連線中' : '📊 試算表連線設定' }}</span>
+                            <i class="fa-solid fa-cloud text-xs"></i>
+                            <span>{{ gasUrl || supabaseConfig.url ? '🟢 雲端同步中' : '📊 雲端連線設定' }}</span>
                         </button>
                         <button @click="openReturnControlModal" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-xs transition flex items-center gap-1.5">
                             <i class="fa-solid fa-clock"></i> 回程登記開放
@@ -293,7 +298,7 @@
                             <i class="fa-solid fa-user-plus"></i> 新增成員
                         </button>
                         <span class="text-slate-300">|</span>
-                        <button @click="resetAllStatus" class="text-xs font-medium text-rose-600 hover:text-rose-800 flex items-center gap-1">
+                        <button @click="promptResetAllStatus" class="text-xs font-medium text-rose-600 hover:text-rose-800 flex items-center gap-1">
                             <i class="fa-solid fa-rotate text-[11px]"></i> 重置點名
                         </button>
                     </div>
@@ -348,7 +353,7 @@
                             </select>
 
                             <!-- Delete Button -->
-                            <button @click="deleteStudent(student.id)" class="p-1.5 text-slate-400 hover:text-rose-600 transition" title="刪除此成員">
+                            <button @click="promptDeleteStudent(student)" class="p-1.5 text-slate-400 hover:text-rose-600 transition" title="刪除此成員">
                                 <i class="fa-solid fa-trash-can text-sm"></i>
                             </button>
                         </div>
@@ -362,43 +367,39 @@
             </div>
         </main>
 
-        <!-- Modal: Google Apps Script / Sheet Config Modal -->
-        <div v-if="showGasModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <!-- Modal 0: Cloud Sync Settings Modal -->
+        <div v-if="showCloudModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-xl space-y-4">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                     <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
-                        <i class="fa-solid fa-file-excel text-emerald-600"></i> Google 試算表同步設定
+                        <i class="fa-solid fa-cloud text-emerald-600"></i> 雲端資料庫同步設定
                     </h3>
-                    <button @click="showGasModal = false" class="text-slate-400 hover:text-slate-600 p-1">
+                    <button @click="showCloudModal = false" class="text-slate-400 hover:text-slate-600 p-1">
                         <i class="fa-solid fa-xmark text-sm"></i>
                     </button>
                 </div>
 
                 <div class="space-y-3 text-xs text-slate-600">
-                    <p class="leading-relaxed">
-                        貼上您的 <strong class="text-slate-900">Google Apps Script 網頁應用程式 URL</strong>，系統將自動讀取與寫入您試算表中的學生名單！
-                    </p>
-
                     <div>
-                        <label class="font-bold text-slate-700 block mb-1">貼上 Apps Script Web App URL：</label>
+                        <label class="font-bold text-slate-700 block mb-1">Google Apps Script Web App URL：</label>
                         <input v-model="gasUrlInput" type="text" placeholder="https://script.google.com/macros/s/AKfycb.../exec"
                                class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] outline-none focus:bg-white focus:border-slate-800">
                     </div>
 
                     <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[11px] space-y-1">
-                        <div class="font-bold text-slate-700">💡 提示：試算表格式說明</div>
-                        <p class="text-slate-500">請確保試算表欄位順序為：<code class="text-slate-800 font-mono font-semibold">編號 | 班級 | 姓名 | 去程狀態 | 去程時間 | 回程意願 | 回程狀態 | 回程時間 | 離隊備註</code></p>
+                        <div class="font-bold text-slate-700">💡 試算表欄位需求</div>
+                        <p class="text-slate-500">依序需為：<code class="text-slate-800 font-mono font-semibold">編號 | 班級 | 姓名 | 去程狀態 | 去程時間 | 回程意願 | 回程狀態 | 回程時間 | 離隊備註</code></p>
                     </div>
                 </div>
 
                 <div class="flex gap-2 pt-1">
-                    <button @click="clearGasConfig" class="px-3 py-2 border border-slate-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-medium">清除連線</button>
+                    <button @click="promptClearCloudConfig" class="px-3 py-2 border border-slate-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-medium">清除連線</button>
                     <button @click="saveGasConfig" class="flex-1 py-2 bg-slate-900 text-white rounded-xl text-xs font-medium hover:bg-slate-800">儲存並開啟同步</button>
                 </div>
             </div>
         </div>
 
-        <!-- Modal 1: Teacher Auth Modal -->
+        <!-- Modal 1: Teacher Auth Modal (Hide password text) -->
         <div v-if="showAuthModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div class="bg-white rounded-2xl max-w-xs w-full p-6 shadow-xl space-y-4 border border-slate-100">
                 <div class="text-center space-y-1">
@@ -421,27 +422,61 @@
 
         <!-- Modal 2: QR Code Modal -->
         <div v-if="showQrModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl text-center space-y-4 border border-slate-100">
+            <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl space-y-4 border border-slate-100">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                     <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
-                        <i class="fa-solid fa-qrcode text-slate-800"></i> 學生簽到網址條碼
+                        <i class="fa-solid fa-qrcode text-slate-800"></i> 學生簽到 QR Code
                     </h3>
                     <button @click="showQrModal = false" class="text-slate-400 hover:text-slate-600 p-1">
                         <i class="fa-solid fa-xmark text-sm"></i>
                     </button>
                 </div>
+
+                <!-- Mode Switcher Tabs -->
+                <div class="flex bg-slate-100 p-1 rounded-xl text-xs font-medium">
+                    <button @click="setQrMode('auto')" 
+                            :class="qrMode === 'auto' ? 'bg-white text-slate-900 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'"
+                            class="flex-1 py-1.5 rounded-lg transition text-center">
+                        自動產生 (本網址)
+                    </button>
+                    <button @click="setQrMode('custom')" 
+                            :class="qrMode === 'custom' ? 'bg-white text-slate-900 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'"
+                            class="flex-1 py-1.5 rounded-lg transition text-center">
+                        自訂 / 上傳圖檔
+                    </button>
+                </div>
                 
-                <p class="text-xs text-slate-500">請學生使用手機掃描此 QR Code 進入簽到頁面</p>
-                
-                <!-- Reliable QR Code Image Display -->
-                <div class="flex justify-center items-center p-3 bg-slate-50 rounded-xl border border-slate-200 min-h-[200px]">
-                    <img :src="qrImageUrl" alt="簽到網址 QR Code" class="w-48 h-48 rounded-lg shadow-sm border border-slate-100 bg-white p-2 object-contain" />
+                <!-- Display Mode 1: Auto Generated QR Code -->
+                <div v-if="qrMode === 'auto'" class="space-y-3">
+                    <p class="text-xs text-slate-500 text-center">請學生使用手機掃描此條碼進入簽到頁面</p>
+                    <div class="flex justify-center items-center p-3 bg-slate-50 rounded-xl border border-slate-200 min-h-[200px]">
+                        <img :src="qrImageUrl" alt="簽到網址 QR Code" class="w-48 h-48 rounded-lg shadow-sm border border-slate-100 bg-white p-2 object-contain" />
+                    </div>
                 </div>
 
-                <div class="space-y-2">
-                    <p class="text-[11px] text-slate-500 font-mono break-all bg-slate-50 p-2.5 rounded-lg border border-slate-200 select-all">{{ currentSiteUrl }}</p>
+                <!-- Display Mode 2: Custom Upload / URL QR Code -->
+                <div v-else class="space-y-3">
+                    <div v-if="customQrImageUrl" class="flex justify-center items-center p-3 bg-slate-50 rounded-xl border border-slate-200 min-h-[200px]">
+                        <img :src="customQrImageUrl" alt="自訂 QR Code" class="w-48 h-48 rounded-lg shadow-sm border border-slate-100 bg-white p-2 object-contain" />
+                    </div>
+                    <div v-else class="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs space-y-1">
+                        <i class="fa-solid fa-image text-2xl mb-1"></i>
+                        <p>尚未上傳自訂 QR Code 圖片</p>
+                    </div>
+
+                    <div class="space-y-2 text-left text-xs pt-1">
+                        <div>
+                            <label class="font-bold text-slate-700 block mb-1">上傳圖片 (手機相簿或電腦圖檔)：</label>
+                            <input type="file" @change="handleQrUpload" accept="image/*" 
+                                   class="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white hover:file:bg-slate-800 bg-slate-50 border border-slate-200 rounded-xl p-1 cursor-pointer">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-2 pt-1">
+                    <p v-if="qrMode === 'auto'" class="text-[11px] text-slate-500 font-mono break-all bg-slate-50 p-2.5 rounded-lg border border-slate-200 select-all text-center">{{ currentSiteUrl }}</p>
                     <div class="flex gap-2">
-                        <button @click="copySiteUrl" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-xs transition flex items-center justify-center gap-1.5">
+                        <button v-if="qrMode === 'auto'" @click="copySiteUrl" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-xs transition flex items-center justify-center gap-1.5">
                             <i class="fa-solid fa-copy text-xs"></i> 複製簽到網址
                         </button>
                         <button @click="showQrModal = false" class="py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-xl text-xs transition">
@@ -470,7 +505,7 @@
             </div>
         </div>
 
-        <!-- Modal 3.5: Return Registration Control Modal -->
+        <!-- Modal 3.5: Return Control Modal -->
         <div v-if="showReturnControlModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl space-y-4">
                 <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
@@ -565,10 +600,25 @@
             </div>
         </div>
 
+        <!-- Modal 6: Custom Confirmation Modal -->
+        <div v-if="confirmDialog.show" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl max-w-xs w-full p-5 shadow-xl space-y-3 border border-slate-100">
+                <div class="flex items-center gap-2.5 text-rose-600">
+                    <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+                    <h3 class="text-base font-bold text-slate-800">{{ confirmDialog.title }}</h3>
+                </div>
+                <p class="text-xs text-slate-600 leading-relaxed">{{ confirmDialog.message }}</p>
+                <div class="flex gap-2 pt-2">
+                    <button @click="confirmDialog.show = false" class="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-medium hover:bg-slate-50">取消</button>
+                    <button @click="executeConfirmAction" class="flex-1 py-2 bg-rose-600 text-white rounded-xl text-xs font-medium hover:bg-rose-700">確定執行</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Toast Floating Notification -->
         <transition name="toast">
-            <div v-if="toastMessage" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 rounded-xl shadow-lg text-xs font-medium z-50 flex items-center gap-2">
-                <i class="fa-solid fa-circle-info text-slate-400 text-xs"></i>
+            <div v-if="toastMessage" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl text-xs font-medium z-50 flex items-center gap-2 border border-slate-800">
+                <i class="fa-solid fa-circle-info text-emerald-400 text-xs"></i>
                 <span>{{ toastMessage }}</span>
             </div>
         </transition>
@@ -576,12 +626,17 @@
     </div>
 
     <script>
-        const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
+        const { createApp, ref, computed, onMounted } = Vue;
 
         const STORAGE_KEY = 'fieldtrip_roster_data_v2';
         const SURVEY_KEY = 'fieldtrip_survey_url_v2';
         const RETURN_CONTROL_KEY = 'fieldtrip_return_control_v1';
         const GAS_URL_KEY = 'fieldtrip_gas_url_v1';
+        const QR_MODE_KEY = 'fieldtrip_qr_mode_v1';
+        const CUSTOM_QR_URL_KEY = 'fieldtrip_custom_qr_url_v1';
+
+        // 指定目標簽到網址
+        const TARGET_CHECKIN_URL = 'https://usc112520-coder.github.io/1112/';
 
         createApp({
             setup() {
@@ -599,7 +654,7 @@
                 const showAddModal = ref(false);
                 const showQrModal = ref(false);
                 const showReturnControlModal = ref(false);
-                const showGasModal = ref(false);
+                const showCloudModal = ref(false);
 
                 const teacherPinInput = ref('');
                 const surveyUrl = ref('https://forms.gle/sample');
@@ -607,8 +662,22 @@
                 const returnControl = ref({ enabled: true });
                 const returnControlInput = ref({ enabled: true });
 
+                // Confirmation Modal State
+                const confirmDialog = ref({
+                    show: false,
+                    title: '確認操作',
+                    message: '',
+                    action: null
+                });
+
+                // Custom QR Code States
+                const qrMode = ref('auto');
+                const customQrImageUrl = ref('');
+
+                // Cloud Backend Configurations
                 const gasUrl = ref('');
                 const gasUrlInput = ref('');
+                const supabaseConfig = ref({ url: '', key: '' });
                 let pollTimer = null;
                 let isPollingPaused = false; 
 
@@ -620,17 +689,63 @@
                 const pastedText = ref('');
                 const newPerson = ref({ className: '', name: '' });
 
-                const currentSiteUrl = computed(() => window.location.href);
+                // 固定為指定網址
+                const currentSiteUrl = computed(() => TARGET_CHECKIN_URL);
 
+                // 自動產生對應 TARGET_CHECKIN_URL 的 QR Code
                 const qrImageUrl = computed(() => {
-                    const targetUrl = encodeURIComponent(window.location.href);
+                    const targetUrl = encodeURIComponent(TARGET_CHECKIN_URL);
                     return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${targetUrl}`;
                 });
+
+                let toastTimer = null;
+                const showToast = (msg) => {
+                    toastMessage.value = msg;
+                    if (toastTimer) clearTimeout(toastTimer);
+                    toastTimer = setTimeout(() => {
+                        toastMessage.value = '';
+                    }, 2600);
+                };
+
+                const triggerConfirm = (title, message, action) => {
+                    confirmDialog.value = {
+                        show: true,
+                        title,
+                        message,
+                        action
+                    };
+                };
+
+                const executeConfirmAction = () => {
+                    if (typeof confirmDialog.value.action === 'function') {
+                        confirmDialog.value.action();
+                    }
+                    confirmDialog.value.show = false;
+                };
+
+                const setQrMode = (mode) => {
+                    qrMode.value = mode;
+                    localStorage.setItem(QR_MODE_KEY, mode);
+                };
+
+                const handleQrUpload = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        customQrImageUrl.value = event.target.result;
+                        localStorage.setItem(CUSTOM_QR_URL_KEY, event.target.result);
+                        qrMode.value = 'custom';
+                        localStorage.setItem(QR_MODE_KEY, 'custom');
+                        showToast('已上傳自訂 QR Code 圖片！');
+                    };
+                    reader.readAsDataURL(file);
+                };
 
                 const copySiteUrl = () => {
                     try {
                         const el = document.createElement('textarea');
-                        el.value = window.location.href;
+                        el.value = TARGET_CHECKIN_URL;
                         el.setAttribute('readonly', '');
                         el.style.position = 'absolute';
                         el.style.left = '-9999px';
@@ -638,9 +753,9 @@
                         el.select();
                         document.execCommand('copy');
                         document.body.removeChild(el);
-                        showToast('已複製簽到網址至剪貼簿！');
+                        showToast('已複製簽到網址！');
                     } catch (e) {
-                        showToast('複製失敗，請直接選取網址複製');
+                        showToast('請手動選取網址進行複製');
                     }
                 };
 
@@ -662,16 +777,6 @@
                     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
                 };
 
-                let toastTimer = null;
-                const showToast = (msg) => {
-                    toastMessage.value = msg;
-                    if (toastTimer) clearTimeout(toastTimer);
-                    toastTimer = setTimeout(() => {
-                        toastMessage.value = '';
-                    }, 2500);
-                };
-
-                // Google Apps Script Fetch Logic
                 const fetchFromGas = async () => {
                     if (!gasUrl.value || isPollingPaused) return;
                     try {
@@ -711,26 +816,27 @@
 
                 const saveGasConfig = () => {
                     const url = gasUrlInput.value.trim();
-                    if (!url.startsWith('https://script.google.com/')) {
-                        showToast('網址格式不正確，必須以 https://script.google.com/ 開頭');
+                    if (url && !url.startsWith('https://script.google.com/')) {
+                        showToast('網址格式需以 https://script.google.com/ 開頭');
                         return;
                     }
                     gasUrl.value = url;
                     localStorage.setItem(GAS_URL_KEY, url);
-                    showGasModal.value = false;
+                    showCloudModal.value = false;
                     fetchFromGas(); 
                     startGasPolling();
-                    showToast('🟢 已啟用 Google 試算表即時同步');
+                    showToast(url ? '🟢 已開啟 Google 試算表同步' : '已關閉雲端連線');
                 };
 
-                const clearGasConfig = () => {
-                    if (confirm('確定要移除 Google 試算表連線嗎？')) {
+                const promptClearCloudConfig = () => {
+                    triggerConfirm('清除雲端連線', '確定要移除現有的雲端資料庫連線嗎？系統將會切換回單機存取模式。', () => {
                         localStorage.removeItem(GAS_URL_KEY);
                         gasUrl.value = '';
+                        gasUrlInput.value = '';
                         if (pollTimer) clearInterval(pollTimer);
-                        showGasModal.value = false;
+                        showCloudModal.value = false;
                         showToast('已切換回單機模式');
-                    }
+                    });
                 };
 
                 const startGasPolling = () => {
@@ -901,20 +1007,18 @@
                     showToast('成員新增成功');
                 };
 
-                const deleteStudent = (id) => {
-                    const studentToDelete = roster.value.find(s => s.id === id);
-                    const name = studentToDelete ? studentToDelete.name : '此成員';
-                    if (confirm(`確定要刪除「${name}」的紀錄嗎？`)) {
+                const promptDeleteStudent = (student) => {
+                    triggerConfirm('刪除成員', `確定要刪除「${student.name}」的紀錄嗎？此操作無法復原。`, () => {
                         pausePollingTemporarily();
-                        roster.value = roster.value.filter(s => s.id !== id);
+                        roster.value = roster.value.filter(s => s.id !== student.id);
                         saveLocalStorage();
-                        postToGas({ type: 'delete', id: id, name: studentToDelete ? studentToDelete.name : '' });
-                        showToast(`已刪除 ${name}`);
-                    }
+                        postToGas({ type: 'delete', id: student.id, name: student.name });
+                        showToast(`已刪除 ${student.name}`);
+                    });
                 };
 
-                const resetAllStatus = () => {
-                    if (confirm('確定要重置所有人的簽到狀態嗎？名單將會保留。')) {
+                const promptResetAllStatus = () => {
+                    triggerConfirm('重置所有點名狀態', '確定要將所有人的去程與回程簽到狀態重置為「未簽到」嗎？成員名單將會完整保留。', () => {
                         pausePollingTemporarily();
                         roster.value.forEach(s => {
                             s.outboundStatus = '未簽到';
@@ -925,8 +1029,8 @@
                         });
                         saveLocalStorage();
                         postToGas(roster.value);
-                        showToast('已重置所有點名狀態');
-                    }
+                        showToast('已重置所有簽到狀態');
+                    });
                 };
 
                 const handleFileUpload = (e) => {
@@ -976,7 +1080,7 @@
                             });
 
                             if (parsedList.length === 0) {
-                                showToast('未解析出有效的學生名單，請確認欄位是否包含「姓名」');
+                                showToast('未解析出有效名單，請確認 Excel 包含「姓名」欄位');
                                 return;
                             }
 
@@ -1073,23 +1177,8 @@
                     const wb = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(wb, ws, '參訪點名清單');
                     XLSX.writeFile(wb, `參訪點名報表_${new Date().toISOString().slice(0,10)}.xlsx`);
-                    showToast('Excel 報表已匯出');
+                    showToast('Excel 報表已成功匯出');
                 };
-
-                watch(showQrModal, (newVal) => {
-                    if (newVal) {
-                        nextTick(() => {
-                            const canvas = document.getElementById('qrcodeCanvas');
-                            if (canvas && window.QRCode && typeof window.QRCode.toCanvas === 'function') {
-                                try {
-                                    window.QRCode.toCanvas(canvas, window.location.href, { width: 180, margin: 2 });
-                                } catch (e) {
-                                    console.error('QR code render error:', e);
-                                }
-                            }
-                        });
-                    }
-                });
 
                 onMounted(() => {
                     try {
@@ -1101,6 +1190,16 @@
                         const savedReturnControl = localStorage.getItem(RETURN_CONTROL_KEY);
                         if (savedReturnControl) {
                             returnControl.value = JSON.parse(savedReturnControl);
+                        }
+
+                        const savedQrMode = localStorage.getItem(QR_MODE_KEY);
+                        if (savedQrMode) {
+                            qrMode.value = savedQrMode;
+                        }
+
+                        const savedCustomQrUrl = localStorage.getItem(CUSTOM_QR_URL_KEY);
+                        if (savedCustomQrUrl) {
+                            customQrImageUrl.value = savedCustomQrUrl;
                         }
 
                         const savedRoster = localStorage.getItem(STORAGE_KEY);
@@ -1124,16 +1223,17 @@
 
                 return {
                     roster, activeRole,
-                    showAuthModal, showSurveyModal, showImportModal, showAddModal, showQrModal, showReturnControlModal, showGasModal,
+                    showAuthModal, showSurveyModal, showImportModal, showAddModal, showQrModal, showReturnControlModal, showCloudModal, confirmDialog,
                     teacherPinInput, surveyUrl, surveyUrlInput, returnControl, returnControlInput, isReturnOpen,
-                    gasUrl, gasUrlInput, saveGasConfig, clearGasConfig,
+                    gasUrl, gasUrlInput, supabaseConfig, saveGasConfig, promptClearCloudConfig,
+                    qrMode, customQrImageUrl, setQrMode, handleQrUpload,
                     studentSearchInput, teacherSearchInput,
                     filterStatus, filterTabs, currentSiteUrl, qrImageUrl, copySiteUrl, toastMessage, importOption, pastedText, newPerson,
                     searchedStudents, filteredTeacherRoster, outboundCount, returnDoneCount, returnBusCount, returnSelfLeaveCount,
                     switchToStudentMode, openTeacherAuthModal, authenticateTeacher, openSurveyModal, saveSurveyUrl,
-                    openReturnControlModal, saveReturnControl,
-                    toggleOutbound, toggleReturn, setReturnIntent, updateStudent, addSingleStudent, deleteStudent,
-                    resetAllStatus, handleFileUpload, importPastedText, exportToExcel
+                    openReturnControlModal, saveReturnControl, executeConfirmAction,
+                    toggleOutbound, toggleReturn, setReturnIntent, updateStudent, addSingleStudent, promptDeleteStudent,
+                    promptResetAllStatus, handleFileUpload, importPastedText, exportToExcel
                 };
             }
         }).mount('#app');
