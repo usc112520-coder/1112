@@ -635,6 +635,9 @@
         const QR_MODE_KEY = 'fieldtrip_qr_mode_v1';
         const CUSTOM_QR_URL_KEY = 'fieldtrip_custom_qr_url_v1';
 
+        // 💡 提示：若希望所有人手機打開預設就連線到試算表，可直接在此填入您的 Web App 網址
+        const DEFAULT_GAS_URL = '';
+
         // 指定目標簽到網址
         const TARGET_CHECKIN_URL = 'https://usc112520-coder.github.io/1112/';
 
@@ -689,12 +692,18 @@
                 const pastedText = ref('');
                 const newPerson = ref({ className: '', name: '' });
 
-                // 固定為指定網址
-                const currentSiteUrl = computed(() => TARGET_CHECKIN_URL);
+                // 動態產生包含試算表連線參數的完整網址（確保手機掃碼後自動連線）
+                const currentSiteUrl = computed(() => {
+                    if (gasUrl.value) {
+                        const separator = TARGET_CHECKIN_URL.includes('?') ? '&' : '?';
+                        return `${TARGET_CHECKIN_URL}${separator}gasUrl=${encodeURIComponent(gasUrl.value)}`;
+                    }
+                    return TARGET_CHECKIN_URL;
+                });
 
-                // 自動產生對應 TARGET_CHECKIN_URL 的 QR Code
+                // 自動產生包含試算表連線參數的 QR Code
                 const qrImageUrl = computed(() => {
-                    const targetUrl = encodeURIComponent(TARGET_CHECKIN_URL);
+                    const targetUrl = encodeURIComponent(currentSiteUrl.value);
                     return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${targetUrl}`;
                 });
 
@@ -780,7 +789,10 @@
                 const fetchFromGas = async () => {
                     if (!gasUrl.value || isPollingPaused) return;
                     try {
-                        const res = await fetch(gasUrl.value);
+                        // 加入時間戳記 _t 避免手機瀏覽器 (LINE/Safari) 強烈快取舊資料
+                        const separator = gasUrl.value.includes('?') ? '&' : '?';
+                        const requestUrl = `${gasUrl.value}${separator}_t=${Date.now()}`;
+                        const res = await fetch(requestUrl);
                         if (res.ok) {
                             const data = await res.json();
                             if (Array.isArray(data)) {
@@ -1182,6 +1194,32 @@
 
                 onMounted(() => {
                     try {
+                        // 優先檢查網址是否帶有 gasUrl 參數（例如掃 QR Code 進入）
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const urlGasParam = urlParams.get('gasUrl') || urlParams.get('gas');
+
+                        if (urlGasParam) {
+                            const decodedGasUrl = decodeURIComponent(urlGasParam);
+                            gasUrl.value = decodedGasUrl;
+                            gasUrlInput.value = decodedGasUrl;
+                            localStorage.setItem(GAS_URL_KEY, decodedGasUrl);
+                        } else {
+                            const savedGasUrl = localStorage.getItem(GAS_URL_KEY);
+                            if (savedGasUrl) {
+                                gasUrl.value = savedGasUrl;
+                                gasUrlInput.value = savedGasUrl;
+                            } else if (DEFAULT_GAS_URL) {
+                                gasUrl.value = DEFAULT_GAS_URL;
+                                gasUrlInput.value = DEFAULT_GAS_URL;
+                                localStorage.setItem(GAS_URL_KEY, DEFAULT_GAS_URL);
+                            }
+                        }
+
+                        if (gasUrl.value) {
+                            fetchFromGas();
+                            startGasPolling();
+                        }
+
                         const savedSurvey = localStorage.getItem(SURVEY_KEY);
                         if (savedSurvey !== null && savedSurvey !== '') {
                             surveyUrl.value = savedSurvey;
@@ -1207,14 +1245,6 @@
                             roster.value = JSON.parse(savedRoster);
                         } else {
                             roster.value = [...defaultRoster];
-                        }
-
-                        const savedGasUrl = localStorage.getItem(GAS_URL_KEY);
-                        if (savedGasUrl) {
-                            gasUrl.value = savedGasUrl;
-                            gasUrlInput.value = savedGasUrl;
-                            fetchFromGas();
-                            startGasPolling();
                         }
                     } catch (e) {
                         roster.value = [...defaultRoster];
