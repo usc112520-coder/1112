@@ -6,577 +6,750 @@
     <title>校外參訪點名系統</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <!-- SheetJS for Excel import/export -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- QRCode JS -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        [v-cloak] { display: none !important; }
+
+        .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
+        .toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, 15px); }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen">
-    <div id="app" class="max-w-5xl mx-auto p-3 sm:p-6 pb-20">
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-12 selection:bg-slate-800 selection:text-white">
+    <div id="app" v-cloak class="max-w-4xl mx-auto px-4 sm:px-6 py-6">
         
-        <!-- Header & Role Selector -->
-        <header class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/80 mb-5 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-xl shadow-md shadow-indigo-200">
-                    <i class="fa-solid fa-bus-simple"></i>
+        <!-- Header Banner -->
+        <header class="bg-slate-900 rounded-2xl p-6 sm:p-7 text-white shadow-sm border border-slate-800 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+                <div class="flex items-center gap-3">
+                    <span class="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-white text-base shadow-sm">
+                        <i class="fa-solid fa-clipboard-user"></i>
+                    </span>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight">校外參訪點名系統</h1>
                 </div>
-                <div>
-                    <div class="flex items-center gap-2">
-                        <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">校外參訪點名系統</h1>
-                        <span v-if="isOnline" class="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full text-[10px] font-semibold flex items-center gap-1">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> 雲端連線中
-                        </span>
-                    </div>
-                    <p class="text-xs text-slate-500 font-medium mt-0.5">跨裝置即時點名與回程離隊登記管理</p>
+                <div class="flex items-center gap-2 mt-1.5">
+                    <p class="text-xs sm:text-sm text-slate-400 font-normal">去程點名與回程離隊登記管理</p>
+                    <!-- Cloud Sync Indicator -->
+                    <span v-if="gasUrl" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-900/80 text-emerald-300 border border-emerald-700/50">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Google 試算表同步中
+                    </span>
+                    <span v-else class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-900/60 text-amber-300 border border-amber-700/50">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> 單機模式 (本機儲存)
+                    </span>
                 </div>
             </div>
 
-            <!-- Role Switch Tabs -->
-            <div class="bg-slate-100 p-1 rounded-xl flex items-center w-full sm:w-auto text-xs font-semibold">
+            <!-- Role Switcher -->
+            <div class="flex items-center bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 self-stretch sm:self-auto justify-stretch">
                 <button @click="switchToStudentMode" 
-                        :class="activeRole === 'student' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-                        class="flex-1 sm:flex-none px-4 py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-user"></i>
-                    <span>學生簽到區</span>
+                        :class="activeRole === 'student' ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-white font-medium'"
+                        class="flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs sm:text-sm transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-user-graduate"></i>
+                    <span>學生簽到</span>
                 </button>
                 <button @click="openTeacherAuthModal" 
-                        :class="activeRole === 'teacher' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-                        class="flex-1 sm:flex-none px-4 py-2 rounded-lg transition-all duration-200 flex items-center justify-center gap-2">
+                        :class="activeRole === 'teacher' ? 'bg-white text-slate-900 font-semibold shadow-sm' : 'text-slate-400 hover:text-white font-medium'"
+                        class="flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs sm:text-sm transition flex items-center justify-center gap-2">
                     <i class="fa-solid fa-user-shield"></i>
-                    <span>教師管理後台</span>
-                    <span v-if="activeRole === 'teacher'" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>教師後台</span>
                 </button>
             </div>
         </header>
 
-        <!-- Toast Notification Alert -->
-        <div v-if="toastMessage" class="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 text-sm animate-bounce">
-            <i class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
-            <span>{{ toastMessage }}</span>
-        </div>
-
-        <!-- ================= STUDENT VIEW ================= -->
-        <main v-if="activeRole === 'student'" class="space-y-5">
+        <!-- Role 1: Student Check-in Mode -->
+        <main v-if="activeRole === 'student'" class="space-y-4">
             <!-- Student Search Card -->
-            <div class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
-                <div class="max-w-md mx-auto text-center space-y-4">
-                    <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 text-lg mb-1">
-                        <i class="fa-solid fa-magnifying-glass"></i>
-                    </div>
-                    <h2 class="text-lg font-bold text-slate-800">參訪人員簽到與回程登記</h2>
-                    <p class="text-xs text-slate-500">請輸入您的姓名查詢個人點名狀態</p>
-
-                    <div class="relative">
-                        <input v-model="studentSearchInput" 
-                               type="text" 
-                               placeholder="請輸入姓名..." 
-                               class="w-full px-4 py-3 pl-11 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-base transition">
-                        <i class="fa-solid fa-user text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 text-sm"></i>
-                    </div>
+            <div class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 space-y-4">
+                <div class="relative max-w-md mx-auto">
+                    <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                    <input v-model="studentSearchInput" type="text" placeholder="請輸入個人姓名進行簽到..." 
+                           class="w-full pl-11 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:border-slate-800 focus:ring-1 focus:ring-slate-800 transition outline-none">
+                    <button v-if="studentSearchInput" @click="studentSearchInput = ''" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+                        <i class="fa-solid fa-xmark text-sm"></i>
+                    </button>
                 </div>
             </div>
 
-            <!-- Student Found Result List -->
-            <div v-if="searchedStudents.length > 0" class="space-y-4">
-                <div v-for="student in searchedStudents" :key="student.id" class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 space-y-5">
-                    <!-- Student Identity Info -->
-                    <div class="flex items-center justify-between pb-4 border-b border-slate-100">
-                        <div>
-                            <span class="inline-block px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-lg mb-1">
-                                {{ student.className }}
+            <!-- Student Search Results List -->
+            <div class="space-y-3">
+                <!-- No match state -->
+                <div v-if="studentSearchInput && searchedStudents.length === 0" class="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200 space-y-2">
+                    <i class="fa-solid fa-user-slash text-2xl"></i>
+                    <p class="text-xs font-medium">找不到符合的成員資料，請確認姓名輸入是否正確</p>
+                </div>
+
+                <!-- Personal Search Results -->
+                <div v-for="student in searchedStudents" :key="student.id" 
+                     class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/80 hover:border-slate-300 transition space-y-3">
+                    
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <div class="flex items-center gap-3">
+                            <span class="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 font-bold flex items-center justify-center text-sm">
+                                {{ student.name.charAt(0) }}
                             </span>
-                            <h3 class="text-xl font-bold text-slate-900">{{ student.name }}</h3>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900">{{ student.name }}</h3>
+                                <p class="text-xs text-slate-500 font-medium">{{ student.className || '參訪成員' }}</p>
+                            </div>
                         </div>
-                        <div class="text-right">
-                            <span class="text-xs text-slate-400 block font-medium">目前的狀態</span>
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mt-1"
-                                  :class="student.outboundStatus === '已上車' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">
-                                <i class="fa-solid" :class="student.outboundStatus === '已上車' ? 'fa-circle-check' : 'fa-clock'"></i>
-                                去程：{{ student.outboundStatus }}
+
+                        <!-- Status Badges -->
+                        <div class="flex items-center gap-1.5 flex-wrap justify-end">
+                            <span :class="student.outboundStatus === '已上車' ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-600 border-slate-200'"
+                                  class="px-2 py-0.5 rounded-lg border text-[11px] font-medium flex items-center gap-1">
+                                <i :class="student.outboundStatus === '已上車' ? 'fa-solid fa-check text-emerald-400' : 'fa-regular fa-circle text-slate-400'"></i>
+                                去程: {{ student.outboundStatus }}
+                            </span>
+                            <span :class="student.returnStatus === '已完成' ? 'bg-emerald-800 text-white border-emerald-800' : 'bg-slate-100 text-slate-600 border-slate-200'"
+                                  class="px-2 py-0.5 rounded-lg border text-[11px] font-medium flex items-center gap-1">
+                                <i :class="student.returnStatus === '已完成' ? 'fa-solid fa-check text-emerald-300' : 'fa-regular fa-circle text-slate-400'"></i>
+                                回程: {{ student.returnStatus === '已完成' ? (student.returnIntent === '自行離開' ? '已離隊' : '已上車') : '未簽到' }}
                             </span>
                         </div>
                     </div>
 
-                    <!-- Section 1: Outbound Check-In -->
-                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-200/60 space-y-3">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2 font-bold text-slate-800 text-sm">
-                                <i class="fa-solid fa-bus text-indigo-600"></i>
-                                <span>1. 去程上車簽到</span>
-                            </div>
-                            <span v-if="student.outboundTime" class="text-xs text-slate-500 font-mono">
-                                簽到時間: {{ student.outboundTime }}
-                            </span>
-                        </div>
-
-                        <div class="flex gap-2">
-                            <button v-if="student.outboundStatus === '未簽到'" 
-                                    @click="markOutbound(student, '已上車')" 
-                                    class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold rounded-xl shadow-sm transition text-sm flex items-center justify-center gap-2">
-                                <i class="fa-solid fa-check text-base"></i>
-                                <span>確認去程已上車</span>
-                            </button>
-                            <button v-else 
-                                    @click="markOutbound(student, '未簽到')" 
-                                    class="w-full py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-xl transition text-xs flex items-center justify-center gap-1.5">
-                                <i class="fa-solid fa-rotate-left"></i>
-                                <span>取消簽到狀態</span>
+                    <!-- Action Steps for Student Check-in -->
+                    <div class="space-y-2.5 pt-1">
+                        <!-- Step 1: Outbound Check-in -->
+                        <div class="flex items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+                            <span class="text-xs font-semibold text-slate-700">1. 去程點名：</span>
+                            <button @click="toggleOutbound(student)" 
+                                    :class="student.outboundStatus === '已上車' ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'bg-slate-900 text-white hover:bg-slate-800'"
+                                    class="px-3.5 py-1.5 rounded-lg font-medium text-xs transition flex items-center gap-1.5">
+                                <i :class="student.outboundStatus === '已上車' ? 'fa-solid fa-rotate-left' : 'fa-solid fa-check'"></i>
+                                <span>{{ student.outboundStatus === '已上車' ? '取消去程簽到' : '去程點名上車' }}</span>
                             </button>
                         </div>
-                    </div>
 
-                    <!-- Section 2: Return Intent & Notes -->
-                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-200/60 space-y-3">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2 font-bold text-slate-800 text-sm">
-                                <i class="fa-solid fa-person-walking-arrow-right text-purple-600"></i>
-                                <span>2. 回程意願與離隊登記</span>
+                        <!-- Step 2 & 3: Return Intent & Return Check-in Section -->
+                        <div v-if="!isReturnOpen" class="bg-amber-50/90 border border-amber-200/80 rounded-xl p-3 text-center space-y-1 text-xs text-amber-900">
+                            <div class="flex items-center justify-center gap-1.5 font-bold">
+                                <i class="fa-solid fa-lock text-amber-600"></i>
+                                <span>回程／離隊登記目前未開放</span>
                             </div>
                         </div>
 
-                        <!-- Questionnaire Link Banner -->
-                        <div v-if="surveyUrl" class="bg-indigo-50 border border-indigo-200/80 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 my-2 shadow-sm">
-                            <div class="flex items-center gap-2.5 text-indigo-950">
-                                <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0">
-                                    <i class="fa-solid fa-clipboard-list"></i>
-                                </div>
-                                <div>
-                                    <div class="font-bold text-xs sm:text-sm">參訪滿意度問卷調查</div>
-                                    <div class="text-[11px] text-indigo-600 font-medium">離隊或回程簽到前請先填寫問卷</div>
+                        <div v-else class="bg-slate-50 p-3 rounded-xl border border-slate-200/60 space-y-3">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-xs font-semibold text-slate-700">2. 回程方式：</span>
+                                <div class="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200">
+                                    <button @click="setReturnIntent(student, '搭車返回')" 
+                                            :class="student.returnIntent === '搭車返回' ? 'bg-slate-900 text-white font-bold' : 'text-slate-500 font-medium hover:text-slate-800'"
+                                            class="px-2.5 py-1 text-[11px] rounded-md transition text-center">
+                                        <i class="fa-solid fa-bus text-[10px] mr-1"></i>團體搭車
+                                    </button>
+                                    <button @click="setReturnIntent(student, '自行離開')" 
+                                            :class="student.returnIntent === '自行離開' ? 'bg-slate-800 text-white font-bold' : 'text-slate-500 font-medium hover:text-slate-800'"
+                                            class="px-2.5 py-1 text-[11px] rounded-md transition text-center">
+                                        <i class="fa-solid fa-person-walking text-[10px] mr-1"></i>自行離隊
+                                    </button>
                                 </div>
                             </div>
-                            <a :href="surveyUrl" target="_blank" rel="noopener noreferrer" class="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs rounded-xl transition text-center shrink-0 flex items-center justify-center gap-1.5 shadow-sm">
-                                <span>前往填寫問卷</span>
-                                <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
-                            </a>
-                        </div>
 
-                        <!-- Intent Toggle Buttons -->
-                        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-200/70 rounded-xl text-xs font-bold">
-                            <button @click="setReturnIntent(student, '搭車返回')" 
-                                    :class="student.returnIntent === '搭車返回' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'" 
-                                    class="py-2.5 rounded-lg transition flex items-center justify-center gap-1.5">
-                                <i class="fa-solid fa-bus"></i>
-                                <span>搭車返回</span>
-                            </button>
-                            <button @click="setReturnIntent(student, '自行離開')" 
-                                    :class="student.returnIntent === '自行離開' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'" 
-                                    class="py-2.5 rounded-lg transition flex items-center justify-center gap-1.5">
-                                <i class="fa-solid fa-person-walking"></i>
-                                <span>自行離開</span>
-                            </button>
-                        </div>
-
-                        <!-- Note Input Field -->
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1">標註</label>
-                            <input v-model="student.returnNote" 
-                                   @change="updateStudent(student)" 
-                                   type="text" 
-                                   placeholder="填寫姓名即可" 
-                                   class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                        </div>
-
-                        <!-- Return Check-In Action Button -->
-                        <div>
-                            <button v-if="student.returnIntent === '搭車返回' && student.returnStatus !== '已上車'"
-                                    @click="markReturn(student, '已上車')"
-                                    class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl shadow-sm transition text-sm flex items-center justify-center gap-2">
-                                <i class="fa-solid fa-bus text-sm"></i>
-                                <span>回程搭車簽到</span>
-                            </button>
-                            <div v-else-if="student.returnIntent === '搭車返回' && student.returnStatus === '已上車'" class="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 font-semibold">
-                                <span><i class="fa-solid fa-circle-check text-emerald-600 mr-1"></i> 已完成回程簽到 ({{ student.returnTime }})</span>
-                                <button @click="markReturn(student, '未簽到')" class="text-slate-500 hover:text-slate-700 underline text-[11px]">重設</button>
+                            <!-- Self Departure Note Input -->
+                            <div v-if="student.returnIntent === '自行離開'" class="pt-0.5">
+                                <input v-model="student.returnNote" @change="updateStudent(student)" type="text" placeholder="說明同行者或離開方式 (例如：家長接送)" 
+                                       class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-slate-800 outline-none">
                             </div>
-                            <div v-else class="bg-purple-50 border border-purple-200 rounded-xl p-3 text-xs text-purple-800 font-semibold text-center">
-                                <i class="fa-solid fa-info-circle mr-1"></i> 已登記自行離開（免簽到）
+
+                            <!-- Direct Survey Link Box inside Return Section -->
+                            <div v-if="surveyUrl" class="bg-amber-50/90 border border-amber-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2 text-xs">
+                                <div class="flex items-center gap-2 text-amber-900 font-medium">
+                                    <i class="fa-solid fa-square-poll-vertical text-amber-600 text-sm"></i>
+                                    <span>參訪滿意度問卷調查</span>
+                                </div>
+                                <a :href="surveyUrl" target="_blank" class="px-3 py-1.5 bg-amber-800 hover:bg-amber-900 text-white font-medium rounded-lg transition shrink-0 flex items-center gap-1 text-[11px] shadow-sm">
+                                    <span>填寫問卷</span>
+                                    <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                                </a>
+                            </div>
+
+                            <!-- Step 3: Return Check-in Button -->
+                            <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/60">
+                                <span class="text-xs font-semibold text-slate-700">3. 回程/離隊簽到：</span>
+                                <button @click="toggleReturn(student)" 
+                                        :class="student.returnStatus === '已完成' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200' : 'bg-emerald-700 text-white hover:bg-emerald-800'"
+                                        class="px-3.5 py-1.5 rounded-lg font-medium text-xs transition flex items-center gap-1.5 shadow-sm">
+                                    <i :class="student.returnStatus === '已完成' ? 'fa-solid fa-rotate-left' : 'fa-solid fa-clipboard-check'"></i>
+                                    <span>{{ student.returnStatus === '已完成' ? '取消回程簽到' : (student.returnIntent === '自行離開' ? '完成離隊登記' : '回程搭車點名') }}</span>
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Empty / No Match Search State -->
-            <div v-else-if="studentSearchInput.trim() !== ''" class="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200/80">
-                <i class="fa-solid fa-user-slash text-3xl mb-2 text-slate-300"></i>
-                <p class="text-sm font-medium text-slate-600">查無此參訪人員姓名</p>
-                <p class="text-xs text-slate-400 mt-1">請確認姓名輸入無誤，或聯繫帶隊老師</p>
             </div>
         </main>
 
-        <!-- ================= TEACHER DASHBOARD ================= -->
-        <main v-if="activeRole === 'teacher'" class="space-y-5">
-            <!-- Stats Overview Cards -->
+        <!-- Role 2: Teacher Control Panel -->
+        <main v-if="activeRole === 'teacher'" class="space-y-4">
+            <!-- Dashboard Overview Cards -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
-                    <div class="text-xs font-semibold text-slate-400">總參訪人數</div>
-                    <div class="text-2xl font-bold text-slate-900 mt-1">{{ roster.length }} <span class="text-xs font-normal text-slate-500">人</span></div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-1">
+                    <span class="text-xs font-medium text-slate-500">總人數</span>
+                    <div class="flex items-baseline justify-between">
+                        <span class="text-xl sm:text-2xl font-bold text-slate-900">{{ roster.length }}</span>
+                        <span class="text-xs font-normal text-slate-400">人</span>
+                    </div>
                 </div>
-                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
-                    <div class="text-xs font-semibold text-slate-400">去程已上車</div>
-                    <div class="text-2xl font-bold text-emerald-600 mt-1">{{ outboundCount }} <span class="text-xs font-normal text-slate-500">/ {{ roster.length }}</span></div>
+
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-1">
+                    <span class="text-xs font-medium text-slate-500">去程已簽到</span>
+                    <div class="flex items-baseline justify-between">
+                        <span class="text-xl sm:text-2xl font-bold text-slate-900">{{ outboundCount }}</span>
+                        <span class="text-xs font-normal text-slate-500">{{ Math.round((outboundCount / (roster.length || 1)) * 100) }}%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1 mt-1 overflow-hidden">
+                        <div class="bg-slate-900 h-1 rounded-full transition-all duration-300" :style="{ width: `${(outboundCount / (roster.length || 1)) * 100}%` }"></div>
+                    </div>
                 </div>
-                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
-                    <div class="text-xs font-semibold text-slate-400">回程搭車登記</div>
-                    <div class="text-2xl font-bold text-indigo-600 mt-1">{{ returnBusCount }} <span class="text-xs font-normal text-slate-500">人</span></div>
+
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-1">
+                    <span class="text-xs font-medium text-slate-500">回程已簽到</span>
+                    <div class="flex items-baseline justify-between">
+                        <span class="text-xl sm:text-2xl font-bold text-emerald-700">{{ returnDoneCount }}</span>
+                        <span class="text-xs font-normal text-slate-500">{{ Math.round((returnDoneCount / (roster.length || 1)) * 100) }}%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1 mt-1 overflow-hidden">
+                        <div class="bg-emerald-600 h-1 rounded-full transition-all duration-300" :style="{ width: `${(returnDoneCount / (roster.length || 1)) * 100}%` }"></div>
+                    </div>
                 </div>
-                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
-                    <div class="text-xs font-semibold text-slate-400">自行離隊登記</div>
-                    <div class="text-2xl font-bold text-purple-600 mt-1">{{ returnSelfLeaveCount }} <span class="text-xs font-normal text-slate-500">人</span></div>
+
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-1">
+                    <span class="text-xs font-medium text-slate-500">意願: 搭車/離隊</span>
+                    <div class="flex items-baseline justify-between">
+                        <span class="text-lg font-bold text-slate-900">{{ returnBusCount }} <span class="text-xs font-normal text-slate-400">搭車</span></span>
+                        <span class="text-lg font-bold text-slate-700">{{ returnSelfLeaveCount }} <span class="text-xs font-normal text-slate-400">離隊</span></span>
+                    </div>
                 </div>
             </div>
 
-            <!-- Toolbar & Controls -->
-            <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/80 space-y-4">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <button @click="openSurveyModal" class="inline-flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold px-3 py-2 rounded-xl border border-purple-200 transition text-xs">
-                            <i class="fa-solid fa-clipboard-question"></i>
-                            <span>設定問卷連結</span>
-                        </button>
-                        <button @click="showImportModal = true" class="inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold px-3 py-2 rounded-xl border border-indigo-200 transition text-xs">
-                            <i class="fa-solid fa-file-import"></i>
-                            <span>匯入 Excel / CSV</span>
-                        </button>
-                        <button @click="showAddModal = true" class="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-xl transition text-xs">
-                            <i class="fa-solid fa-plus"></i>
-                            <span>新增人員</span>
-                        </button>
-                    </div>
+            <!-- Toolbar & Actions -->
+            <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <h2 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <span>控制台管理工具</span>
+                    </h2>
 
-                    <div class="flex items-center gap-2 w-full sm:w-auto">
-                        <button @click="exportToExcel" class="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl transition text-xs shadow-sm">
-                            <i class="fa-solid fa-file-excel"></i>
-                            <span>匯出 Excel 報表</span>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button @click="showGasModal = true" 
+                                :class="gasUrl ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'"
+                                class="px-3 py-1.5 border font-medium rounded-xl text-xs transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-excel text-xs"></i>
+                            <span>{{ gasUrl ? '🟢 Google 試算表連線中' : '📊 試算表連線設定' }}</span>
                         </button>
-                        <button @click="resetAllStatus" class="inline-flex items-center justify-center gap-1 bg-red-50 hover:bg-red-100 text-red-600 font-medium px-3 py-2 rounded-xl transition text-xs border border-red-200">
-                            <i class="fa-solid fa-rotate"></i>
-                            <span>重設點名</span>
+                        <button @click="openReturnControlModal" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-xs transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-clock"></i> 回程登記開放
+                        </button>
+                        <button @click="showImportModal = true" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-xs transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-import"></i> 匯入名單
+                        </button>
+                        <button @click="exportToExcel" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-xs transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-excel"></i> 匯出 Excel
+                        </button>
+                        <button @click="showQrModal = true" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-xs transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-qrcode"></i> 簽到 QR Code
+                        </button>
+                        <button @click="openSurveyModal" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-xs transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-link"></i> 設定問卷
                         </button>
                     </div>
                 </div>
 
-                <!-- Filters & Search Bar -->
-                <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
-                    <div class="flex flex-wrap items-center gap-1 w-full sm:w-auto text-xs font-medium">
-                        <button v-for="tab in filterTabs" 
-                                :key="tab.key" 
+                <!-- Search and Filters -->
+                <div class="flex flex-col sm:flex-row gap-2.5 justify-between items-center">
+                    <!-- Filter Tabs -->
+                    <div class="flex bg-slate-100 p-1 rounded-xl text-xs font-medium w-full sm:w-auto overflow-x-auto">
+                        <button v-for="tab in filterTabs" :key="tab.key"
                                 @click="filterStatus = tab.key"
-                                :class="filterStatus === tab.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-                                class="px-3 py-1.5 rounded-lg transition">
+                                :class="filterStatus === tab.key ? 'bg-white text-slate-900 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'"
+                                class="px-3 py-1.5 rounded-lg transition whitespace-nowrap">
                             {{ tab.label }}
                         </button>
                     </div>
 
-                    <div class="relative w-full sm:w-64">
-                        <input v-model="teacherSearchInput" 
-                               type="text" 
-                               placeholder="搜尋姓名或班級..." 
-                               class="w-full px-3 py-1.5 pl-8 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <i class="fa-solid fa-magnifying-glass text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 text-xs"></i>
+                    <!-- Search Input -->
+                    <div class="relative w-full sm:w-60">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input v-model="teacherSearchInput" type="text" placeholder="搜尋班級或姓名..." 
+                               class="w-full pl-9 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:border-slate-800 outline-none">
                     </div>
                 </div>
             </div>
 
-            <!-- Full Roster Table -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-xs text-slate-700">
-                        <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
-                            <tr>
-                                <th class="p-3 pl-4">班級 / 科系</th>
-                                <th class="p-3">姓名</th>
-                                <th class="p-3">去程簽到</th>
-                                <th class="p-3">回程意願</th>
-                                <th class="p-3">回程簽到</th>
-                                <th class="p-3">標註</th>
-                                <th class="p-3 pr-4 text-right">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100 font-medium">
-                            <tr v-for="student in filteredTeacherRoster" :key="student.id" class="hover:bg-slate-50/80 transition">
-                                <td class="p-3 pl-4 font-bold text-slate-900">{{ student.className }}</td>
-                                <td class="p-3 font-bold text-slate-800">{{ student.name }}</td>
-                                <td class="p-3">
-                                    <button @click="toggleOutbound(student)" 
-                                            :class="student.outboundStatus === '已上車' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'"
-                                            class="px-2.5 py-1 rounded-lg transition font-semibold text-[11px] inline-flex items-center gap-1">
-                                        <i class="fa-solid" :class="student.outboundStatus === '已上車' ? 'fa-check' : 'fa-clock'"></i>
-                                        <span>{{ student.outboundStatus }}</span>
-                                    </button>
-                                </td>
-                                <td class="p-3">
-                                    <select v-model="student.returnIntent" @change="setReturnIntent(student, student.returnIntent)" class="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-indigo-500">
-                                        <option value="搭車返回">搭車返回</option>
-                                        <option value="自行離開">自行離開</option>
-                                    </select>
-                                </td>
-                                <td class="p-3">
-                                    <span v-if="student.returnIntent === '自行離開'" class="text-purple-600 font-semibold text-[11px]">
-                                        免簽到 (離隊)
-                                    </span>
-                                    <button v-else 
-                                            @click="toggleReturn(student)" 
-                                            :class="student.returnStatus === '已上車' ? 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-                                            class="px-2.5 py-1 rounded-lg transition font-semibold text-[11px] inline-flex items-center gap-1">
-                                        <i class="fa-solid" :class="student.returnStatus === '已上車' ? 'fa-check' : 'fa-clock'"></i>
-                                        <span>{{ student.returnStatus }}</span>
-                                    </button>
-                                </td>
-                                <td class="p-3">
-                                    <input v-model="student.returnNote" 
-                                           @change="updateStudent(student)" 
-                                           type="text" 
-                                           placeholder="填寫姓名即可" 
-                                           class="w-32 sm:w-40 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
-                                </td>
-                                <td class="p-3 pr-4 text-right">
-                                    <button @click="deleteStudent(student.id)" class="text-slate-400 hover:text-red-600 transition p-1">
-                                        <i class="fa-solid fa-trash-can"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr v-if="filteredTeacherRoster.length === 0">
-                                <td colspan="7" class="p-8 text-center text-slate-400">
-                                    沒有符合條件的人員資料
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <!-- Roster Table / List -->
+            <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                <div class="px-4 py-3 bg-slate-50/80 border-b border-slate-200/60 flex items-center justify-between">
+                    <span class="text-xs font-medium text-slate-500">目前顯示 {{ filteredTeacherRoster.length }} 筆資料</span>
+                    <div class="flex items-center gap-3">
+                        <button @click="showAddModal = true" class="text-xs font-medium text-slate-700 hover:text-slate-900 flex items-center gap-1">
+                            <i class="fa-solid fa-user-plus"></i> 新增成員
+                        </button>
+                        <span class="text-slate-300">|</span>
+                        <button @click="resetAllStatus" class="text-xs font-medium text-rose-600 hover:text-rose-800 flex items-center gap-1">
+                            <i class="fa-solid fa-rotate text-[11px]"></i> 重置點名
+                        </button>
+                    </div>
+                </div>
+
+                <div class="divide-y divide-slate-100">
+                    <div v-for="student in filteredTeacherRoster" :key="student.id" 
+                         class="p-3.5 sm:p-4 hover:bg-slate-50/50 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        
+                        <!-- Left: Info -->
+                        <div class="flex items-center gap-3 min-w-[200px]">
+                            <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 font-bold flex items-center justify-center text-xs shrink-0">
+                                {{ student.name.charAt(0) }}
+                            </span>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-sm text-slate-900">{{ student.name }}</span>
+                                    <span class="text-[10px] font-medium px-2 py-0.5 bg-slate-100 text-slate-600 rounded">{{ student.className || '參訪成員' }}</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 mt-0.5">
+                                    去程: <span class="font-medium text-slate-600">{{ student.outboundStatus }} ({{ student.outboundTime || '未簽' }})</span>
+                                    <span class="mx-1">•</span>
+                                    回程: <span class="font-medium text-slate-600">{{ student.returnStatus === '已完成' ? '已簽到' : '未簽' }} ({{ student.returnIntent }})</span>
+                                    <span v-if="student.returnNote" class="ml-1 text-slate-500">({{ student.returnNote }})</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Right: Actions & Controls -->
+                        <div class="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+                            <!-- Outbound Toggle Button -->
+                            <button @click="toggleOutbound(student)" 
+                                    :class="student.outboundStatus === '已上車' ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'"
+                                    class="px-2.5 py-1.5 rounded-lg border text-xs font-medium transition flex items-center gap-1">
+                                <i :class="student.outboundStatus === '已上車' ? 'fa-solid fa-check text-emerald-400' : 'fa-regular fa-circle text-slate-400'"></i>
+                                去程: {{ student.outboundStatus === '已上車' ? '已點名' : '未簽' }}
+                            </button>
+
+                            <!-- Return Check-in Button -->
+                            <button @click="toggleReturn(student)" 
+                                    :class="student.returnStatus === '已完成' ? 'bg-emerald-800 text-white border-emerald-800' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'"
+                                    class="px-2.5 py-1.5 rounded-lg border text-xs font-medium transition flex items-center gap-1">
+                                <i :class="student.returnStatus === '已完成' ? 'fa-solid fa-check text-emerald-300' : 'fa-regular fa-circle text-slate-400'"></i>
+                                回程: {{ student.returnStatus === '已完成' ? '已簽到' : '未簽' }}
+                            </button>
+
+                            <!-- Return Intent Selector -->
+                            <select :value="student.returnIntent" @change="setReturnIntent(student, $event.target.value)"
+                                    class="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:bg-white outline-none">
+                                <option value="搭車返回">團體搭車</option>
+                                <option value="自行離開">自行離隊</option>
+                            </select>
+
+                            <!-- Delete Button -->
+                            <button @click="deleteStudent(student.id)" class="p-1.5 text-slate-400 hover:text-rose-600 transition">
+                                <i class="fa-solid fa-trash-can text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div v-if="filteredTeacherRoster.length === 0" class="p-8 text-center text-slate-400 space-y-1">
+                        <i class="fa-solid fa-folder-open text-2xl"></i>
+                        <p class="text-xs font-medium">尚無符合條件的名單資料</p>
+                    </div>
                 </div>
             </div>
         </main>
 
-        <!-- ================= MODALS ================= -->
-        
-        <!-- Modal 1: Teacher Auth Password Modal -->
-        <div v-if="showAuthModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-2xl max-w-xs w-full p-5 shadow-xl border border-slate-100 text-center">
-                <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
-                    <i class="fa-solid fa-key"></i>
-                </div>
-                <h3 class="text-base font-bold text-slate-800">教師後台驗證</h3>
-                <p class="text-xs text-slate-500 mt-1 mb-4">請輸入管理密碼進入控制台</p>
-
-                <input v-model="teacherPinInput" 
-                       @keyup.enter="authenticateTeacher" 
-                       type="password" 
-                       placeholder="輸入密碼..." 
-                       class="w-full px-3 py-2 border border-slate-300 rounded-xl text-center text-lg font-mono tracking-widest focus:ring-2 focus:ring-indigo-500 focus:outline-none mb-3">
-
-                <div class="flex gap-2">
-                    <button @click="showAuthModal = false" class="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs hover:bg-slate-50">取消</button>
-                    <button @click="authenticateTeacher" class="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700">解鎖</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Modal 2: Survey URL Settings Modal -->
-        <div v-if="showSurveyModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-xl border border-slate-100">
-                <div class="flex justify-between items-center mb-3 border-b pb-2.5">
-                    <div class="flex items-center gap-2 text-indigo-600">
-                        <i class="fa-solid fa-clipboard-question text-lg"></i>
-                        <h3 class="text-base font-bold text-slate-800">設定參訪問卷調查連結</h3>
-                    </div>
-                    <button @click="showSurveyModal = false" class="text-slate-400 hover:text-slate-600">
-                        <i class="fa-solid fa-xmark text-base"></i>
-                    </button>
-                </div>
-
-                <div class="space-y-3">
-                    <p class="text-xs text-slate-500">學生於「離隊/回程簽到區」可點擊進入此問卷進行填寫（支援 Google 表單、SurveyCake 或自訂網址）。</p>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">問卷網址 (URL)</label>
-                        <input v-model="surveyUrlInput" type="url" placeholder="https://forms.google.com/..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                    </div>
-                </div>
-
-                <div class="flex gap-2.5 mt-5">
-                    <button @click="showSurveyModal = false" class="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl font-medium text-xs hover:bg-slate-50 transition">取消</button>
-                    <button @click="saveSurveyUrl" class="flex-1 py-2 bg-indigo-600 text-white rounded-xl font-medium text-xs hover:bg-indigo-700 transition">儲存設定</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Modal 3: Import Excel / CSV / Text Modal -->
-        <div v-if="showImportModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-2xl max-w-lg w-full p-5 shadow-xl border border-slate-100 space-y-4">
-                <div class="flex justify-between items-center border-b pb-3">
+        <!-- Modal: Google Apps Script / Sheet Config Modal -->
+        <div v-if="showGasModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                     <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
-                        <i class="fa-solid fa-file-import text-indigo-600"></i>
-                        <span>匯入參訪人員名單</span>
+                        <i class="fa-solid fa-file-excel text-emerald-600"></i> Google 試算表同步設定
                     </h3>
-                    <button @click="showImportModal = false" class="text-slate-400 hover:text-slate-600">
-                        <i class="fa-solid fa-xmark text-base"></i>
+                    <button @click="showGasModal = false" class="text-slate-400 hover:text-slate-600 p-1">
+                        <i class="fa-solid fa-xmark text-sm"></i>
                     </button>
                 </div>
 
-                <div class="space-y-3 text-xs">
-                    <div class="flex items-center gap-4 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                        <span class="font-semibold text-slate-700">匯入模式：</span>
-                        <label class="flex items-center gap-1.5 cursor-pointer">
-                            <input type="radio" v-model="importOption" value="append" class="text-indigo-600">
-                            <span>累加至現有名單</span>
-                        </label>
-                        <label class="flex items-center gap-1.5 cursor-pointer">
-                            <input type="radio" v-model="importOption" value="replace" class="text-indigo-600">
-                            <span>覆蓋現有名單</span>
-                        </label>
-                    </div>
+                <div class="space-y-3 text-xs text-slate-600">
+                    <p class="leading-relaxed">
+                        貼上您的 <strong class="text-slate-900">Google Apps Script 網頁應用程式 URL</strong>，全班點名紀錄將自動儲存並寫入您的 Google 試算表中！
+                    </p>
 
-                    <!-- File Upload Option -->
-                    <div class="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-indigo-400 transition bg-slate-50">
-                        <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-400 mb-1"></i>
-                        <div class="font-semibold text-slate-700">選擇 Excel / CSV 檔案</div>
-                        <p class="text-[11px] text-slate-400 mt-0.5">試算表內只需包含「班級」與「姓名」欄位</p>
-                        <input type="file" @change="handleFileUpload" accept=".xlsx, .xls, .csv" class="mt-2 text-xs text-slate-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
-                    </div>
-
-                    <div class="text-center font-bold text-slate-400">或直接貼上文字</div>
-
-                    <!-- Direct Text Paste Option -->
                     <div>
-                        <textarea v-model="pastedText" rows="4" placeholder="例如：
-資訊一甲 王小明
-外文二乙 陳雅婷" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+                        <label class="font-bold text-slate-700 block mb-1">貼上 Apps Script Web App URL：</label>
+                        <input v-model="gasUrlInput" type="text" placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                               class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] outline-none focus:bg-white focus:border-slate-800">
+                    </div>
+
+                    <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[11px] space-y-1">
+                        <div class="font-bold text-slate-700">💡 尚未建立 Google 試算表腳本？</div>
+                        <p class="text-slate-500">請參考專屬教學檔案 <code class="text-slate-800 font-mono font-semibold">google_apps_script_guide.md</code>，3 分鐘完成設定！</p>
                     </div>
                 </div>
 
+                <div class="flex gap-2 pt-1">
+                    <button @click="clearGasConfig" class="px-3 py-2 border border-slate-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-medium">清除連線</button>
+                    <button @click="saveGasConfig" class="flex-1 py-2 bg-slate-900 text-white rounded-xl text-xs font-medium hover:bg-slate-800">儲存並開啟同步</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal 1: Teacher Auth Modal -->
+        <div v-if="showAuthModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl max-w-xs w-full p-6 shadow-xl space-y-4 border border-slate-100">
+                <div class="text-center space-y-1">
+                    <span class="w-10 h-10 bg-slate-100 text-slate-800 rounded-xl flex items-center justify-center mx-auto text-lg">
+                        <i class="fa-solid fa-lock"></i>
+                    </span>
+                    <h3 class="text-base font-bold text-slate-800">教師管理驗證</h3>
+                    <p class="text-xs text-slate-400">請輸入管理密碼進入控制台</p>
+                </div>
+                <div>
+                    <input v-model="teacherPinInput" type="password" placeholder="請輸入密碼" @keyup.enter="authenticateTeacher" 
+                           class="w-full text-center tracking-widest text-lg font-mono py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-slate-800 outline-none">
+                </div>
                 <div class="flex gap-2">
-                    <button @click="showImportModal = false" class="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs hover:bg-slate-50">取消</button>
-                    <button @click="importPastedText" class="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700">確認文字匯入</button>
+                    <button @click="showAuthModal = false" class="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-medium hover:bg-slate-50">取消</button>
+                    <button @click="authenticateTeacher" class="flex-1 py-2 bg-slate-900 text-white rounded-xl text-xs font-medium hover:bg-slate-800">登入</button>
                 </div>
             </div>
         </div>
 
-        <!-- Modal 4: Add Single Student Modal -->
-        <div v-if="showAddModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl border border-slate-100 space-y-4">
-                <div class="flex justify-between items-center border-b pb-2.5">
-                    <h3 class="text-base font-bold text-slate-800">新增參訪人員</h3>
-                    <button @click="showAddModal = false" class="text-slate-400 hover:text-slate-600">
-                        <i class="fa-solid fa-xmark text-base"></i>
+        <!-- Modal 2: QR Code Modal -->
+        <div v-if="showQrModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl text-center space-y-4">
+                <h3 class="text-base font-bold text-slate-800 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-qrcode text-slate-800"></i> 學生簽到網址條碼
+                </h3>
+                <p class="text-xs text-slate-500">掃描此 QR Code 即可打開簽到頁面</p>
+                
+                <div class="flex justify-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <canvas id="qrcodeCanvas"></canvas>
+                </div>
+
+                <p class="text-[11px] text-slate-400 font-mono break-all bg-slate-50 p-2 rounded-lg border border-slate-100">{{ currentSiteUrl }}</p>
+
+                <button @click="showQrModal = false" class="w-full py-2 bg-slate-900 text-white font-medium rounded-xl text-xs hover:bg-slate-800">關閉</button>
+            </div>
+        </div>
+
+        <!-- Modal 3: Survey Settings Modal -->
+        <div v-if="showSurveyModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl space-y-4">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-link text-slate-800"></i> 設定滿意度問卷網址
+                </h3>
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Google 表單或其他問卷連結</label>
+                    <input v-model="surveyUrlInput" type="text" placeholder="https://forms.gle/..." 
+                           class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:border-slate-800 outline-none">
+                </div>
+                <div class="flex gap-2">
+                    <button @click="showSurveyModal = false" class="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-medium">取消</button>
+                    <button @click="saveSurveyUrl" class="flex-1 py-2 bg-slate-900 text-white rounded-xl text-xs font-medium hover:bg-slate-800">儲存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal 3.5: Return Registration Control Modal -->
+        <div v-if="showReturnControlModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl space-y-4">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-slate-800"></i> 回程登記開放設定
+                </h3>
+                
+                <div class="space-y-3 text-xs">
+                    <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                        <div class="space-y-0.5">
+                            <span class="font-bold text-slate-800 block text-sm">開放學生登記回程</span>
+                            <span class="text-[11px] text-slate-500 block">開啟後學生即可進行回程搭車與離隊簽到</span>
+                        </div>
+                        <input type="checkbox" v-model="returnControlInput.enabled" class="w-5 h-5 accent-slate-900 rounded cursor-pointer">
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    <button @click="showReturnControlModal = false" class="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-medium">取消</button>
+                    <button @click="saveReturnControl" class="flex-1 py-2 bg-slate-900 text-white rounded-xl text-xs font-medium hover:bg-slate-800">儲存設定</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal 4: Import Roster Modal -->
+        <div v-if="showImportModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-file-import text-slate-800"></i> 匯入學生名單
+                    </h3>
+                    <button @click="showImportModal = false" class="text-slate-400 hover:text-slate-600 p-1">
+                        <i class="fa-solid fa-xmark text-sm"></i>
                     </button>
                 </div>
 
                 <div class="space-y-3 text-xs">
                     <div>
-                        <label class="block font-semibold text-slate-600 mb-1">班級 / 科系</label>
-                        <input v-model="newPerson.className" type="text" placeholder="例如：資訊一甲" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <label class="font-bold text-slate-700 block mb-1">1. 匯入方式：</label>
+                        <div class="flex items-center gap-4 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                            <label class="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                                <input type="radio" v-model="importOption" value="append" class="accent-slate-900"> 追加至現有名單
+                            </label>
+                            <label class="flex items-center gap-1.5 cursor-pointer font-medium text-rose-700">
+                                <input type="radio" v-model="importOption" value="replace" class="accent-slate-900"> 覆蓋現有名單
+                            </label>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block font-semibold text-slate-600 mb-1">姓名</label>
-                        <input v-model="newPerson.name" type="text" placeholder="例如：王小明" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                    </div>
-                </div>
 
-                <div class="flex gap-2 pt-2">
-                    <button @click="showAddModal = false" class="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs hover:bg-slate-50">取消</button>
-                    <button @click="addSingleStudent" class="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700">新增</button>
+                    <div>
+                        <label class="font-bold text-slate-700 block mb-1">2. 上傳 Excel 檔案 (.xlsx / .xls)：</label>
+                        <input type="file" @change="handleFileUpload" accept=".xlsx, .xls, .csv" 
+                               class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer bg-slate-50 border border-slate-200 rounded-xl p-1">
+                        <p class="text-[11px] text-slate-400 mt-1">※ Excel 欄位請包含「班級」與「姓名」</p>
+                    </div>
+
+                    <div class="relative flex py-1 items-center">
+                        <div class="flex-grow border-t border-slate-200"></div>
+                        <span class="flex-shrink mx-2 text-[11px] text-slate-400 font-medium">或直接貼上文字</span>
+                        <div class="flex-grow border-t border-slate-200"></div>
+                    </div>
+
+                    <div>
+                        <label class="font-bold text-slate-700 block mb-1">3. 快速貼上文字 (格式：班級 姓名)：</label>
+                        <textarea v-model="pastedText" rows="4" placeholder="資訊一甲 王小明&#10;外文二乙 陳雅婷&#10;李大華" 
+                                  class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:bg-white focus:border-slate-800 font-mono"></textarea>
+                        <button @click="importPastedText" class="w-full mt-2 py-2 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 transition">
+                            解析並匯入文字名單
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
+
+        <!-- Modal 5: Add Student Modal -->
+        <div v-if="showAddModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl max-w-xs w-full p-5 shadow-xl space-y-3">
+                <h3 class="text-base font-bold text-slate-800">新增成員</h3>
+                <div class="space-y-2 text-xs">
+                    <div>
+                        <label class="font-medium text-slate-700 block mb-1">班級 / 單位</label>
+                        <input v-model="newPerson.className" type="text" placeholder="例如：資訊一甲" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-slate-800">
+                    </div>
+                    <div>
+                        <label class="font-medium text-slate-700 block mb-1">姓名 *</label>
+                        <input v-model="newPerson.name" type="text" placeholder="例如：張小華" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-slate-800">
+                    </div>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button @click="showAddModal = false" class="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-medium">取消</button>
+                    <button @click="addSingleStudent" class="flex-1 py-2 bg-slate-900 text-white rounded-xl text-xs font-medium hover:bg-slate-800">新增</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Floating Notification -->
+        <transition name="toast">
+            <div v-if="toastMessage" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 rounded-xl shadow-lg text-xs font-medium z-50 flex items-center gap-2">
+                <i class="fa-solid fa-circle-info text-slate-400 text-xs"></i>
+                <span>{{ toastMessage }}</span>
+            </div>
+        </transition>
 
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <script>
+        const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
-        const { createApp, ref, computed, onMounted } = Vue;
-
-        // Application Constants & Firebase Config
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'fieldtrip-app-id';
-        const defaultFirebaseConfig = {
-            apiKey: "AIzaSyDummyKeyForFallbackOnly",
-            authDomain: "demo-app.firebaseapp.com",
-            projectId: "demo-app",
-            storageBucket: "demo-app.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "1:123456789:web:123456789"
-        };
-
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : defaultFirebaseConfig;
-
-        const firebaseApp = initializeApp(firebaseConfig);
-        const auth = getAuth(firebaseApp);
-        const db = getFirestore(firebaseApp);
+        const STORAGE_KEY = 'fieldtrip_roster_data_v2';
+        const SURVEY_KEY = 'fieldtrip_survey_url_v2';
+        const RETURN_CONTROL_KEY = 'fieldtrip_return_control_v1';
+        const GAS_URL_KEY = 'fieldtrip_gas_url_v1';
 
         createApp({
             setup() {
-                // Default Initial Roster
                 const defaultRoster = [
                     { id: '1', className: '資訊一甲', name: '王小明', outboundStatus: '未簽到', outboundTime: '', returnIntent: '搭車返回', returnStatus: '未簽到', returnTime: '', returnNote: '' },
                     { id: '2', className: '外文二乙', name: '陳雅婷', outboundStatus: '未簽到', outboundTime: '', returnIntent: '搭車返回', returnStatus: '未簽到', returnTime: '', returnNote: '' },
-                    { id: '3', className: '電機三甲', name: '李大華', outboundStatus: '已上車', outboundTime: '08:15:22', returnIntent: '自行離開', returnStatus: '未簽到', returnTime: '', returnNote: '張家豪' },
+                    { id: '3', className: '電機三甲', name: '李大華', outboundStatus: '已上車', outboundTime: '08:15:22', returnIntent: '自行離開', returnStatus: '已完成', returnTime: '16:30:10', returnNote: '與家長同行' },
                     { id: '4', className: '企管二甲', name: '張建國', outboundStatus: '未簽到', outboundTime: '', returnIntent: '搭車返回', returnStatus: '未簽到', returnTime: '', returnNote: '' },
                     { id: '5', className: '設計一乙', name: '林心怡', outboundStatus: '已上車', outboundTime: '08:18:05', returnIntent: '搭車返回', returnStatus: '未簽到', returnTime: '', returnNote: '' }
                 ];
 
                 const roster = ref([]);
                 const activeRole = ref('student');
-                const isOnline = ref(false);
-                
-                // Modals Visibility
                 const showAuthModal = ref(false);
                 const showSurveyModal = ref(false);
                 const showImportModal = ref(false);
                 const showAddModal = ref(false);
+                const showQrModal = ref(false);
+                const showReturnControlModal = ref(false);
+                const showGasModal = ref(false);
 
-                // Inputs and Forms
                 const teacherPinInput = ref('');
-                const teacherPassword = ref('1987');
-                const surveyUrl = ref('https://forms.google.com');
+                const surveyUrl = ref('https://forms.gle/sample');
                 const surveyUrlInput = ref('');
+                const returnControl = ref({ enabled: true });
+                const returnControlInput = ref({ enabled: true });
+
+                const gasUrl = ref('');
+                const gasUrlInput = ref('');
+                let pollTimer = null;
+
                 const studentSearchInput = ref('');
                 const teacherSearchInput = ref('');
                 const filterStatus = ref('all');
-                
                 const toastMessage = ref('');
-                let toastTimer = null;
-
                 const importOption = ref('append');
                 const pastedText = ref('');
                 const newPerson = ref({ className: '', name: '' });
 
+                const currentSiteUrl = computed(() => window.location.href);
+
                 const filterTabs = [
                     { key: 'all', label: '全部' },
                     { key: 'outbound_pending', label: '去程未簽' },
-                    { key: 'outbound_done', label: '去程已簽' },
-                    { key: 'return_bus', label: '回程搭車' },
-                    { key: 'return_self', label: '回程離隊' }
+                    { key: 'outbound_done', label: '去程已簽到' },
+                    { key: 'return_pending', label: '回程未簽' },
+                    { key: 'return_done', label: '回程已簽到' },
+                    { key: 'return_bus', label: '搭車' },
+                    { key: 'return_self', label: '自行離隊' }
                 ];
 
+                const isReturnOpen = computed(() => returnControl.value.enabled);
+
+                const getCurrentTime = () => {
+                    const d = new Date();
+                    const pad = (n) => String(n).padStart(2, '0');
+                    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                };
+
+                let toastTimer = null;
+                const showToast = (msg) => {
+                    toastMessage.value = msg;
+                    if (toastTimer) clearTimeout(toastTimer);
+                    toastTimer = setTimeout(() => {
+                        toastMessage.value = '';
+                    }, 2500);
+                };
+
+                // Google Apps Script Polling & Fetch Logic
+                const fetchFromGas = async () => {
+                    if (!gasUrl.value) return;
+                    try {
+                        const res = await fetch(gasUrl.value);
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (Array.isArray(data) && data.length > 0) {
+                                roster.value = data;
+                                saveLocalStorage();
+                            }
+                        }
+                    } catch (e) {
+                        console.error('GAS fetch error:', e);
+                    }
+                };
+
+                const postToGas = async (payload) => {
+                    if (!gasUrl.value) return;
+                    try {
+                        await fetch(gasUrl.value, {
+                            method: 'POST',
+                            mode: 'no-cors',
+                            headers: { 'Content-Type': 'text/plain' },
+                            body: JSON.stringify(payload)
+                        });
+                    } catch (e) {
+                        console.error('GAS post error:', e);
+                    }
+                };
+
+                const saveGasConfig = () => {
+                    const url = gasUrlInput.value.trim();
+                    if (!url.startsWith('https://script.google.com/')) {
+                        showToast('網址格式不正確，必須以 https://script.google.com/ 開頭');
+                        return;
+                    }
+                    gasUrl.value = url;
+                    localStorage.setItem(GAS_URL_KEY, url);
+                    showGasModal.value = false;
+                    fetchFromGas();
+                    // Initial push
+                    postToGas(roster.value);
+                    startGasPolling();
+                    showToast('🟢 已啟用 Google 試算表即時同步');
+                };
+
+                const clearGasConfig = () => {
+                    if (confirm('確定要移除 Google 試算表連線嗎？')) {
+                        localStorage.removeItem(GAS_URL_KEY);
+                        gasUrl.value = '';
+                        if (pollTimer) clearInterval(pollTimer);
+                        showGasModal.value = false;
+                        showToast('已切換回單機模式');
+                    }
+                };
+
+                const startGasPolling = () => {
+                    if (pollTimer) clearInterval(pollTimer);
+                    if (gasUrl.value) {
+                        pollTimer = setInterval(fetchFromGas, 8000); // Poll every 8 seconds
+                    }
+                };
+
+                const saveLocalStorage = () => {
+                    try {
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(roster.value));
+                    } catch (e) {
+                        console.error('Failed to save to localStorage', e);
+                    }
+                };
+
+                const openReturnControlModal = () => {
+                    returnControlInput.value = { ...returnControl.value };
+                    showReturnControlModal.value = true;
+                };
+
+                const saveReturnControl = () => {
+                    returnControl.value = { ...returnControlInput.value };
+                    localStorage.setItem(RETURN_CONTROL_KEY, JSON.stringify(returnControl.value));
+                    showReturnControlModal.value = false;
+                    showToast(returnControl.value.enabled ? '已開啟學生回程登記' : '已關閉學生回程登記');
+                };
+
                 const searchedStudents = computed(() => {
-                    const query = studentSearchInput.value.trim().toLowerCase();
-                    if (!query) return [];
-                    return roster.value
-                        .filter(s => s.name.toLowerCase().includes(query))
-                        .sort((a, b) => (a.className || '').localeCompare(b.className || '', 'zh-TW', { numeric: true }));
+                    const q = studentSearchInput.value.trim().toLowerCase();
+                    if (!q) return [];
+                    return roster.value.filter(s => 
+                        (s.name && s.name.toLowerCase().includes(q)) || 
+                        (s.className && s.className.toLowerCase().includes(q))
+                    ).sort((a, b) => {
+                        const classCompare = (a.className || '').localeCompare(b.className || '', 'zh-TW', { numeric: true });
+                        if (classCompare !== 0) return classCompare;
+                        return (a.name || '').localeCompare(b.name || '', 'zh-TW', { numeric: true });
+                    });
                 });
 
                 const filteredTeacherRoster = computed(() => {
                     let list = roster.value;
                     if (teacherSearchInput.value.trim()) {
                         const q = teacherSearchInput.value.trim().toLowerCase();
-                        list = list.filter(s => s.name.toLowerCase().includes(q) || s.className.toLowerCase().includes(q));
+                        list = list.filter(s => 
+                            (s.name && s.name.toLowerCase().includes(q)) || 
+                            (s.className && s.className.toLowerCase().includes(q))
+                        );
                     }
 
                     if (filterStatus.value === 'outbound_pending') {
                         list = list.filter(s => s.outboundStatus === '未簽到');
                     } else if (filterStatus.value === 'outbound_done') {
                         list = list.filter(s => s.outboundStatus === '已上車');
+                    } else if (filterStatus.value === 'return_pending') {
+                        list = list.filter(s => s.returnStatus !== '已完成');
+                    } else if (filterStatus.value === 'return_done') {
+                        list = list.filter(s => s.returnStatus === '已完成');
                     } else if (filterStatus.value === 'return_bus') {
                         list = list.filter(s => s.returnIntent === '搭車返回');
                     } else if (filterStatus.value === 'return_self') {
@@ -591,103 +764,9 @@
                 });
 
                 const outboundCount = computed(() => roster.value.filter(s => s.outboundStatus === '已上車').length);
+                const returnDoneCount = computed(() => roster.value.filter(s => s.returnStatus === '已完成').length);
                 const returnBusCount = computed(() => roster.value.filter(s => s.returnIntent === '搭車返回').length);
                 const returnSelfLeaveCount = computed(() => roster.value.filter(s => s.returnIntent === '自行離開').length);
-
-                const getCurrentTime = () => {
-                    const now = new Date();
-                    return now.toTimeString().split(' ')[0];
-                };
-
-                const showToast = (msg) => {
-                    toastMessage.value = msg;
-                    if (toastTimer) clearTimeout(toastTimer);
-                    toastTimer = setTimeout(() => {
-                        toastMessage.value = '';
-                    }, 3000);
-                };
-
-                // Save to local storage for immediate offline/hybrid persistence
-                const saveLocalStorage = () => {
-                    try {
-                        localStorage.setItem('fieldtrip_roster_' + appId, JSON.stringify(roster.value));
-                    } catch (e) {
-                        console.error('Local storage save error:', e);
-                    }
-                };
-
-                const updateStudentInCloud = async (student) => {
-                    saveLocalStorage();
-                    if (!auth.currentUser) return;
-                    try {
-                        const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', String(student.id));
-                        await setDoc(studentRef, {
-                            className: student.className || '',
-                            name: student.name || '',
-                            outboundStatus: student.outboundStatus || '未簽到',
-                            outboundTime: student.outboundTime || '',
-                            returnIntent: student.returnIntent || '搭車返回',
-                            returnStatus: student.returnStatus || '未簽到',
-                            returnTime: student.returnTime || '',
-                            returnNote: student.returnNote || ''
-                        }, { merge: true });
-                    } catch (e) {
-                        console.error('Cloud save error:', e);
-                    }
-                };
-
-                const deleteStudentFromCloud = async (id) => {
-                    saveLocalStorage();
-                    if (!auth.currentUser) return;
-                    try {
-                        const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', String(id));
-                        await deleteDoc(studentRef);
-                    } catch (e) {
-                        console.error('Cloud delete error:', e);
-                    }
-                };
-
-                const saveSurveyUrlToCloud = async (url) => {
-                    if (!auth.currentUser) return;
-                    try {
-                        const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config');
-                        await setDoc(settingsRef, { surveyUrl: url }, { merge: true });
-                    } catch (e) {
-                        console.error('Cloud surveyUrl error:', e);
-                    }
-                };
-
-                const batchUploadToCloud = async (studentList, replace = false, oldList = []) => {
-                    if (!auth.currentUser) return;
-                    try {
-                        const batch = writeBatch(db);
-                        if (replace && oldList.length > 0) {
-                            for (const existing of oldList) {
-                                const refToDelete = doc(db, 'artifacts', appId, 'public', 'data', 'students', String(existing.id));
-                                batch.delete(refToDelete);
-                            }
-                        }
-                        for (const student of studentList) {
-                            const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', String(student.id));
-                            batch.set(studentRef, {
-                                className: student.className || '',
-                                name: student.name || '',
-                                outboundStatus: student.outboundStatus || '未簽到',
-                                outboundTime: student.outboundTime || '',
-                                returnIntent: student.returnIntent || '搭車返回',
-                                returnStatus: student.returnStatus || '未簽到',
-                                returnTime: student.returnTime || '',
-                                returnNote: student.returnNote || ''
-                            }, { merge: true });
-                        }
-                        // Mark as initialized in cloud so empty roster will not trigger re-initialization
-                        const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config');
-                        batch.set(settingsRef, { initialized: true }, { merge: true });
-                        await batch.commit();
-                    } catch (e) {
-                        console.error('Batch upload error:', e);
-                    }
-                };
 
                 const switchToStudentMode = () => {
                     activeRole.value = 'student';
@@ -700,12 +779,12 @@
                 };
 
                 const authenticateTeacher = () => {
-                    if (teacherPinInput.value === teacherPassword.value) {
+                    if (teacherPinInput.value === '1987') {
                         activeRole.value = 'teacher';
                         showAuthModal.value = false;
-                        showToast('已成功登入教師後台控制台');
+                        showToast('教師驗證成功');
                     } else {
-                        showToast('密碼錯誤！');
+                        showToast('密碼錯誤，請重新輸入');
                     }
                 };
 
@@ -716,56 +795,49 @@
 
                 const saveSurveyUrl = () => {
                     surveyUrl.value = surveyUrlInput.value.trim();
-                    saveSurveyUrlToCloud(surveyUrl.value);
+                    localStorage.setItem(SURVEY_KEY, surveyUrl.value);
                     showSurveyModal.value = false;
-                    showToast('參訪問卷連結設定成功！');
-                };
-
-                const updateStudent = (student) => {
-                    updateStudentInCloud(student);
-                };
-
-                const markOutbound = (student, status) => {
-                    student.outboundStatus = status;
-                    student.outboundTime = status === '已上車' ? getCurrentTime() : '';
-                    updateStudentInCloud(student);
-                    showToast(`${student.name} 去程狀態更新為：${status}`);
-                };
-
-                const setReturnIntent = (student, intent) => {
-                    student.returnIntent = intent;
-                    if (intent === '自行離開') {
-                        student.returnStatus = '免簽到';
-                    } else if (student.returnStatus === '免簽到') {
-                        student.returnStatus = '未簽到';
-                    }
-                    updateStudentInCloud(student);
-                };
-
-                const markReturn = (student, status) => {
-                    student.returnStatus = status;
-                    student.returnTime = status === '已上車' ? getCurrentTime() : '';
-                    updateStudentInCloud(student);
-                    showToast(`${student.name} 回程狀態更新為：${status}`);
+                    showToast('問卷網址已儲存');
                 };
 
                 const toggleOutbound = (student) => {
                     const newStatus = student.outboundStatus === '已上車' ? '未簽到' : '已上車';
-                    markOutbound(student, newStatus);
+                    student.outboundStatus = newStatus;
+                    student.outboundTime = newStatus === '已上車' ? getCurrentTime() : '';
+                    saveLocalStorage();
+                    postToGas(student);
+                    showToast(`${student.name} 去程簽到：${newStatus}`);
                 };
 
                 const toggleReturn = (student) => {
-                    const newStatus = student.returnStatus === '已上車' ? '未簽到' : '已上車';
-                    markReturn(student, newStatus);
+                    const newStatus = student.returnStatus === '已完成' ? '未簽到' : '已完成';
+                    student.returnStatus = newStatus;
+                    student.returnTime = newStatus === '已完成' ? getCurrentTime() : '';
+                    saveLocalStorage();
+                    postToGas(student);
+                    const actionName = student.returnIntent === '自行離開' ? '離隊登記' : '回程簽到';
+                    showToast(`${student.name} ${actionName}：${newStatus}`);
+                };
+
+                const setReturnIntent = (student, intent) => {
+                    student.returnIntent = intent;
+                    saveLocalStorage();
+                    postToGas(student);
+                    showToast(`${student.name} 回程選擇：${intent}`);
+                };
+
+                const updateStudent = (student) => {
+                    saveLocalStorage();
+                    postToGas(student);
                 };
 
                 const addSingleStudent = () => {
-                    if (!newPerson.value.name.trim()) {
+                    if (!newPerson.value.name || !newPerson.value.name.trim()) {
                         showToast('請輸入姓名');
                         return;
                     }
-                    const newStudent = {
-                        id: String(Date.now()),
+                    const item = {
+                        id: Date.now().toString(),
                         className: newPerson.value.className.trim() || '參訪成員',
                         name: newPerson.value.name.trim(),
                         outboundStatus: '未簽到',
@@ -775,106 +847,103 @@
                         returnTime: '',
                         returnNote: ''
                     };
-                    updateStudentInCloud(newStudent);
+                    roster.value.push(item);
+                    saveLocalStorage();
+                    postToGas(item);
                     newPerson.value = { className: '', name: '' };
                     showAddModal.value = false;
-                    showToast('成功新增人員');
+                    showToast('成員新增成功');
                 };
 
                 const deleteStudent = (id) => {
-                    roster.value = roster.value.filter(s => String(s.id) !== String(id));
-                    deleteStudentFromCloud(id);
-                    showToast('已刪除該人員');
+                    if (confirm('確定要刪除此成員紀錄嗎？')) {
+                        roster.value = roster.value.filter(s => s.id !== id);
+                        saveLocalStorage();
+                        postToGas(roster.value);
+                        showToast('已刪除成員');
+                    }
                 };
 
                 const resetAllStatus = () => {
-                    roster.value.forEach(s => {
-                        s.outboundStatus = '未簽到';
-                        s.outboundTime = '';
-                        s.returnIntent = '搭車返回';
-                        s.returnStatus = '未簽到';
-                        s.returnTime = '';
-                        s.returnNote = '';
-                        updateStudentInCloud(s);
-                    });
-                    showToast('點名狀態已全部重置');
+                    if (confirm('確定要重置所有人的簽到狀態嗎？名單將會保留。')) {
+                        roster.value.forEach(s => {
+                            s.outboundStatus = '未簽到';
+                            s.outboundTime = '';
+                            s.returnStatus = '未簽到';
+                            s.returnTime = '';
+                            s.returnNote = '';
+                        });
+                        saveLocalStorage();
+                        postToGas(roster.value);
+                        showToast('已重置所有點名狀態');
+                    }
                 };
 
                 const handleFileUpload = (e) => {
                     const file = e.target.files[0];
                     if (!file) return;
+
                     const reader = new FileReader();
-                    reader.onload = (evt) => {
+                    reader.onload = (event) => {
                         try {
-                            const data = new Uint8Array(evt.target.result);
+                            const data = new Uint8Array(event.target.result);
                             const workbook = XLSX.read(data, { type: 'array' });
-                            const firstSheetName = workbook.SheetNames[0];
-                            const worksheet = workbook.Sheets[firstSheetName];
-                            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
 
-                            const importedList = jsonData.map((row, idx) => {
-                                let className = '';
-                                let name = '';
-                                
-                                // Smart fuzzy header detection
-                                for (const key of Object.keys(row)) {
-                                    const cleanKey = String(key).trim().replace(/\s+/g, '');
-                                    const val = String(row[key]).trim();
-                                    if (!val || val === 'undefined') continue;
-                                    
-                                    if (!className && (cleanKey.includes('班') || cleanKey.includes('系') || cleanKey.includes('組') || cleanKey.includes('處') || cleanKey.includes('單位'))) {
-                                        className = val;
-                                    } else if (!name && (cleanKey.includes('名') || cleanKey.includes('姓') || cleanKey.includes('員') || cleanKey.includes('生'))) {
-                                        name = val;
+                            const parsedList = [];
+                            jsonData.forEach((row, idx) => {
+                                let nameVal = '';
+                                let classVal = '';
+
+                                Object.keys(row).forEach(key => {
+                                    const cleanKey = key.trim().toLowerCase();
+                                    if (cleanKey.includes('姓名') || cleanKey.includes('名字') || cleanKey.includes('成員') || cleanKey === 'name') {
+                                        nameVal = String(row[key]).trim();
                                     }
-                                }
-                                
-                                // Fallback matching by position if header matching missed
-                                if (!name) {
-                                    const values = Object.values(row).map(v => String(v).trim()).filter(Boolean);
-                                    if (values.length >= 2) {
-                                        className = values[0];
-                                        name = values[1];
-                                    } else if (values.length === 1) {
-                                        name = values[0];
+                                    if (cleanKey.includes('班級') || cleanKey.includes('科系') || cleanKey.includes('單位') || cleanKey === 'class') {
+                                        classVal = String(row[key]).trim();
                                     }
+                                });
+
+                                if (!nameVal && row['姓名']) nameVal = String(row['姓名']).trim();
+                                if (!nameVal && row['Name']) nameVal = String(row['Name']).trim();
+                                if (!classVal && row['班級']) classVal = String(row['班級']).trim();
+
+                                if (nameVal) {
+                                    parsedList.push({
+                                        id: `${Date.now()}_${idx}`,
+                                        className: classVal || '參訪成員',
+                                        name: nameVal,
+                                        outboundStatus: '未簽到',
+                                        outboundTime: '',
+                                        returnIntent: '搭車返回',
+                                        returnStatus: '未簽到',
+                                        returnTime: '',
+                                        returnNote: ''
+                                    });
                                 }
+                            });
 
-                                if (!className) className = '參訪成員';
-
-                                return {
-                                    id: String(Date.now() + idx + Math.floor(Math.random() * 1000)),
-                                    className,
-                                    name,
-                                    outboundStatus: '未簽到',
-                                    outboundTime: '',
-                                    returnIntent: '搭車返回',
-                                    returnStatus: '未簽到',
-                                    returnTime: '',
-                                    returnNote: ''
-                                };
-                            }).filter(s => s.name && s.name.trim() !== '');
-
-                            if (importedList.length === 0) {
-                                showToast('無法在檔案中辨識有效姓名，請檢查 Excel 表格內容');
+                            if (parsedList.length === 0) {
+                                showToast('未解析出有效的學生名單，請確認欄位是否包含「姓名」');
                                 return;
                             }
 
-                            const oldRoster = [...roster.value];
-                            // Update local UI state immediately
                             if (importOption.value === 'replace') {
-                                roster.value = importedList;
+                                roster.value = parsedList;
                             } else {
-                                roster.value = [...roster.value, ...importedList];
+                                roster.value = [...roster.value, ...parsedList];
                             }
-                            saveLocalStorage();
 
-                            batchUploadToCloud(importedList, importOption.value === 'replace', oldRoster);
+                            saveLocalStorage();
+                            postToGas(roster.value);
                             showImportModal.value = false;
-                            showToast(`成功匯入 ${importedList.length} 筆資料！`);
+                            e.target.value = '';
+                            showToast(`成功匯入 ${parsedList.length} 筆資料`);
                         } catch (err) {
                             console.error(err);
-                            showToast('解析檔案失敗，請確定檔案格式正確');
+                            showToast('檔案解析失敗，請上傳標準 Excel 或 CSV 檔案');
                         }
                     };
                     reader.readAsArrayBuffer(file);
@@ -885,186 +954,135 @@
                         showToast('請輸入文字內容');
                         return;
                     }
+
                     const lines = pastedText.value.split('\n');
-                    const importedList = [];
+                    const parsedList = [];
+
                     lines.forEach((line, idx) => {
-                        const trimmed = line.trim();
-                        if (!trimmed) return;
-                        const parts = trimmed.split(/[\s,\t]+/);
-                        let className = '參訪成員';
-                        let name = '';
+                        const parts = line.trim().split(/\s+/);
                         if (parts.length >= 2) {
-                            className = parts[0];
-                            name = parts.slice(1).join(' ');
-                        } else {
-                            name = parts[0];
+                            parsedList.push({
+                                id: `${Date.now()}_${idx}`,
+                                className: parts[0],
+                                name: parts.slice(1).join(' '),
+                                outboundStatus: '未簽到',
+                                outboundTime: '',
+                                returnIntent: '搭車返回',
+                                returnStatus: '未簽到',
+                                returnTime: '',
+                                returnNote: ''
+                            });
+                        } else if (parts.length === 1 && parts[0]) {
+                            parsedList.push({
+                                id: `${Date.now()}_${idx}`,
+                                className: '參訪成員',
+                                name: parts[0],
+                                outboundStatus: '未簽到',
+                                outboundTime: '',
+                                returnIntent: '搭車返回',
+                                returnStatus: '未簽到',
+                                returnTime: '',
+                                returnNote: ''
+                            });
                         }
-                        importedList.push({
-                            id: String(Date.now() + idx + Math.floor(Math.random() * 1000)),
-                            className,
-                            name,
-                            outboundStatus: '未簽到',
-                            outboundTime: '',
-                            returnIntent: '搭車返回',
-                            returnStatus: '未簽到',
-                            returnTime: '',
-                            returnNote: ''
-                        });
                     });
 
-                    if (importedList.length === 0) {
-                        showToast('無法解析有效姓名');
+                    if (parsedList.length === 0) {
+                        showToast('無法解析內容，請確認輸入格式');
                         return;
                     }
 
-                    const oldRoster = [...roster.value];
-                    // Update local UI state immediately
                     if (importOption.value === 'replace') {
-                        roster.value = importedList;
+                        roster.value = parsedList;
                     } else {
-                        roster.value = [...roster.value, ...importedList];
+                        roster.value = [...roster.value, ...parsedList];
                     }
-                    saveLocalStorage();
 
-                    batchUploadToCloud(importedList, importOption.value === 'replace', oldRoster);
+                    saveLocalStorage();
+                    postToGas(roster.value);
                     pastedText.value = '';
                     showImportModal.value = false;
-                    showToast(`成功匯入 ${importedList.length} 筆資料！`);
+                    showToast(`成功解析並匯入 ${parsedList.length} 筆資料`);
                 };
 
                 const exportToExcel = () => {
-                    const sortedRoster = [...roster.value].sort((a, b) => {
-                        const classCompare = (a.className || '').localeCompare(b.className || '', 'zh-TW', { numeric: true });
-                        if (classCompare !== 0) return classCompare;
-                        return (a.name || '').localeCompare(b.name || '', 'zh-TW', { numeric: true });
-                    });
-
-                    const dataToExport = sortedRoster.map((s, index) => ({
-                        '項次': index + 1,
-                        '班級': s.className || '',
-                        '姓名': s.name || '',
-                        '去程簽到': s.outboundStatus || '未簽到',
+                    const data = roster.value.map((s, i) => ({
+                        '項次': i + 1,
+                        '班級': s.className || '參訪成員',
+                        '姓名': s.name,
+                        '去程狀態': s.outboundStatus,
                         '去程時間': s.outboundTime || '',
-                        '回程意願': s.returnIntent || '搭車返回',
-                        '回程簽到': s.returnStatus || '未簽到',
+                        '回程意願': s.returnIntent,
+                        '回程狀態': s.returnStatus === '已完成' ? (s.returnIntent === '自行離開' ? '已離隊' : '已上車') : '未簽到',
                         '回程時間': s.returnTime || '',
-                        '標註': s.returnNote || ''
+                        '離隊備註': s.returnNote || ''
                     }));
-                    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-                    const workbook = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(workbook, worksheet, '參訪點名報表');
-                    XLSX.writeFile(workbook, `校外參訪點名報表_${new Date().toISOString().slice(0,10)}.xlsx`);
-                    showToast('Excel 報表已成功下載！');
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, '參訪點名清單');
+                    XLSX.writeFile(wb, `參訪點名報表_${new Date().toISOString().slice(0,10)}.xlsx`);
+                    showToast('Excel 報表已匯出');
                 };
 
-                onMounted(async () => {
-                    // Load local storage backup first for instant UI response
-                    try {
-                        const localData = localStorage.getItem('fieldtrip_roster_' + appId);
-                        if (localData) {
-                            const parsed = JSON.parse(localData);
-                            if (Array.isArray(parsed) && parsed.length > 0) {
-                                roster.value = parsed;
+                watch(showQrModal, (newVal) => {
+                    if (newVal) {
+                        nextTick(() => {
+                            const canvas = document.getElementById('qrcodeCanvas');
+                            if (canvas && window.QRCode && typeof window.QRCode.toCanvas === 'function') {
+                                try {
+                                    window.QRCode.toCanvas(canvas, window.location.href, { width: 180, margin: 2 });
+                                } catch (e) {
+                                    console.error('QR code render error:', e);
+                                }
                             }
-                        }
-                    } catch (e) {
-                        console.error("Local storage load error", e);
-                    }
-
-                    // Firebase Auth
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (e) {
-                        console.warn("Auth initialization fallback to anonymous", e);
-                    }
-
-                    if (auth.currentUser) {
-                        isOnline.value = true;
-
-                        // Realtime Settings Sync
-                        const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config');
-                        let isInitialized = false;
-
-                        onSnapshot(settingsRef, (snapshot) => {
-                            if (snapshot.exists()) {
-                                const data = snapshot.data();
-                                if (data.surveyUrl) surveyUrl.value = data.surveyUrl;
-                                if (data.initialized) isInitialized = true;
-                            }
-                        }, (err) => console.error("Settings listener error:", err));
-
-                        // Realtime Roster Sync
-                        const rosterCol = collection(db, 'artifacts', appId, 'public', 'data', 'students');
-                        onSnapshot(rosterCol, async (snapshot) => {
-                            const items = [];
-                            snapshot.forEach((docSnap) => {
-                                items.push({ id: docSnap.id, ...docSnap.data() });
-                            });
-                            
-                            // Check initialized flag from setting doc
-                            const settingsSnap = await getDoc(settingsRef);
-                            const hasInit = settingsSnap.exists() && settingsSnap.data()?.initialized;
-
-                            if (items.length > 0 || hasInit || isInitialized) {
-                                roster.value = items;
-                                saveLocalStorage();
-                            } else if (roster.value.length === 0) {
-                                // First time system setup only if no local or cloud data
-                                await batchUploadToCloud(defaultRoster, true);
-                            }
-                        }, (err) => {
-                            console.error("Roster listener error:", err);
                         });
-                    } else if (roster.value.length === 0) {
+                    }
+                });
+
+                onMounted(() => {
+                    try {
+                        const savedSurvey = localStorage.getItem(SURVEY_KEY);
+                        if (savedSurvey !== null && savedSurvey !== '') {
+                            surveyUrl.value = savedSurvey;
+                        }
+
+                        const savedReturnControl = localStorage.getItem(RETURN_CONTROL_KEY);
+                        if (savedReturnControl) {
+                            returnControl.value = JSON.parse(savedReturnControl);
+                        }
+
+                        const savedRoster = localStorage.getItem(STORAGE_KEY);
+                        if (savedRoster) {
+                            roster.value = JSON.parse(savedRoster);
+                        } else {
+                            roster.value = [...defaultRoster];
+                            saveLocalStorage();
+                        }
+
+                        const savedGasUrl = localStorage.getItem(GAS_URL_KEY);
+                        if (savedGasUrl) {
+                            gasUrl.value = savedGasUrl;
+                            gasUrlInput.value = savedGasUrl;
+                            fetchFromGas();
+                            startGasPolling();
+                        }
+                    } catch (e) {
                         roster.value = [...defaultRoster];
                     }
                 });
 
                 return {
-                    roster,
-                    activeRole,
-                    isOnline,
-                    showAuthModal,
-                    showSurveyModal,
-                    showImportModal,
-                    showAddModal,
-                    teacherPinInput,
-                    surveyUrl,
-                    surveyUrlInput,
-                    studentSearchInput,
-                    teacherSearchInput,
-                    filterStatus,
-                    filterTabs,
-                    searchedStudents,
-                    filteredTeacherRoster,
-                    outboundCount,
-                    returnBusCount,
-                    returnSelfLeaveCount,
-                    toastMessage,
-                    importOption,
-                    pastedText,
-                    newPerson,
-                    switchToStudentMode,
-                    openTeacherAuthModal,
-                    authenticateTeacher,
-                    openSurveyModal,
-                    saveSurveyUrl,
-                    updateStudent,
-                    markOutbound,
-                    setReturnIntent,
-                    markReturn,
-                    toggleOutbound,
-                    toggleReturn,
-                    addSingleStudent,
-                    deleteStudent,
-                    resetAllStatus,
-                    handleFileUpload,
-                    importPastedText,
-                    exportToExcel
+                    roster, activeRole,
+                    showAuthModal, showSurveyModal, showImportModal, showAddModal, showQrModal, showReturnControlModal, showGasModal,
+                    teacherPinInput, surveyUrl, surveyUrlInput, returnControl, returnControlInput, isReturnOpen,
+                    gasUrl, gasUrlInput, saveGasConfig, clearGasConfig,
+                    studentSearchInput, teacherSearchInput,
+                    filterStatus, filterTabs, currentSiteUrl, toastMessage, importOption, pastedText, newPerson,
+                    searchedStudents, filteredTeacherRoster, outboundCount, returnDoneCount, returnBusCount, returnSelfLeaveCount,
+                    switchToStudentMode, openTeacherAuthModal, authenticateTeacher, openSurveyModal, saveSurveyUrl,
+                    openReturnControlModal, saveReturnControl,
+                    toggleOutbound, toggleReturn, setReturnIntent, updateStudent, addSingleStudent, deleteStudent,
+                    resetAllStatus, handleFileUpload, importPastedText, exportToExcel
                 };
             }
         }).mount('#app');
