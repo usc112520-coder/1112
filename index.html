@@ -675,9 +675,7 @@
                     gasUrl.value = url;
                     localStorage.setItem(GAS_URL_KEY, url);
                     showGasModal.value = false;
-                    fetchFromGas();
-                    // Initial push
-                    postToGas(roster.value);
+                    fetchFromGas(); // 優先拉取試算表名單，不發送預設名單進行覆蓋
                     startGasPolling();
                     showToast('🟢 已啟用 Google 試算表即時同步');
                 };
@@ -695,7 +693,7 @@
                 const startGasPolling = () => {
                     if (pollTimer) clearInterval(pollTimer);
                     if (gasUrl.value) {
-                        pollTimer = setInterval(fetchFromGas, 8000); // Poll every 8 seconds
+                        pollTimer = setInterval(fetchFromGas, 8000); // 每 8 秒同步一次
                     }
                 };
 
