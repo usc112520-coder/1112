@@ -46,9 +46,6 @@
                     <span v-else-if="supabaseConfig.url" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-950 text-emerald-300 border border-emerald-700/60">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Supabase 即時同步中
                     </span>
-                    <span v-else class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-950 text-amber-300 border border-amber-700/60">
-                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> 單機模式 (本機儲存)
-                    </span>
                 </div>
             </div>
 
@@ -641,8 +638,9 @@
         const QR_MODE_KEY = 'fieldtrip_qr_mode_v1';
         const CUSTOM_QR_URL_KEY = 'fieldtrip_custom_qr_url_v1';
 
-        // 💡 預設試算表連線網址（將您的 Google Apps Script Web App 網址貼在下方引號內，開啟網頁時即會自動載入該資料庫）：
-        const DEFAULT_GAS_URL = '';
+        // 💡 直接讀取的 Google Apps Script 發布網址（請將您的 Web App URL 貼在下方引號中）：
+        // 只要填寫此處，任何裝置開啟網頁時都會直接自動讀取與更新試算表資料，免手動設定！
+        const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbx3QfTgHE-C9tG-_AqvG0UjXj4W0cM2INjDP_DWZx2fGxnk6b6NcCSuE5M5sZk6MrYM2Q/exec';
 
         // 指定目標簽到網址
         const TARGET_CHECKIN_URL = 'https://usc112520-coder.github.io/1112/';
@@ -1203,25 +1201,23 @@
 
                 onMounted(async () => {
                     try {
-                        // 1. 優先檢查網址是否帶有 gasUrl 參數（例如掃 QR Code 進入）
+                        // 1. 自動讀取 Apps Script 網址：優先使用程式內建 DEFAULT_GAS_URL，確保所有裝置開啟時免手動設定
                         const urlParams = new URLSearchParams(window.location.search);
                         const urlGasParam = urlParams.get('gasUrl') || urlParams.get('gas');
+                        const savedGasUrl = localStorage.getItem(GAS_URL_KEY);
 
-                        if (urlGasParam) {
+                        if (DEFAULT_GAS_URL && DEFAULT_GAS_URL.trim() !== '' && DEFAULT_GAS_URL !== 'https://script.google.com/macros/s/YOUR_APPS_SCRIPT_ID/exec') {
+                            gasUrl.value = DEFAULT_GAS_URL.trim();
+                            gasUrlInput.value = DEFAULT_GAS_URL.trim();
+                            localStorage.setItem(GAS_URL_KEY, DEFAULT_GAS_URL.trim());
+                        } else if (urlGasParam) {
                             const decodedGasUrl = decodeURIComponent(urlGasParam);
                             gasUrl.value = decodedGasUrl;
                             gasUrlInput.value = decodedGasUrl;
                             localStorage.setItem(GAS_URL_KEY, decodedGasUrl);
-                        } else {
-                            const savedGasUrl = localStorage.getItem(GAS_URL_KEY);
-                            if (savedGasUrl) {
-                                gasUrl.value = savedGasUrl;
-                                gasUrlInput.value = savedGasUrl;
-                            } else if (DEFAULT_GAS_URL) {
-                                gasUrl.value = DEFAULT_GAS_URL;
-                                gasUrlInput.value = DEFAULT_GAS_URL;
-                                localStorage.setItem(GAS_URL_KEY, DEFAULT_GAS_URL);
-                            }
+                        } else if (savedGasUrl) {
+                            gasUrl.value = savedGasUrl;
+                            gasUrlInput.value = savedGasUrl;
                         }
 
                         // 2. 讀取本機快取與設定
@@ -1252,20 +1248,22 @@
                             roster.value = [...defaultRoster];
                         }
 
-                        // 3. 跨裝置開啟時，第一時間優先連線試算表獲取最新資料
+                        // 3. 所有裝置開啟時，第一時間直接從 Google Apps Script 獲取最新資料並自動開啟輪詢
                         if (gasUrl.value) {
                             isLoadingData.value = true;
                             const success = await fetchFromGas();
                             isLoadingData.value = false;
                             if (success) {
-                                showToast('已成功連線並同步試算表最新資料');
+                                showToast('已直接從 Google 試算表同步最新點名資料');
                             }
                             startGasPolling();
                         }
                     } catch (e) {
                         console.error('onMounted error:', e);
                         isLoadingData.value = false;
-                        roster.value = [...defaultRoster];
+                        if (!roster.value || roster.value.length === 0) {
+                            roster.value = [...defaultRoster];
+                        }
                     }
                 });
 
