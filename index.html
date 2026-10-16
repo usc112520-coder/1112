@@ -5,15 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>智冠校外參訪點名系統</title>
     
-    <!-- LINE / 社群連結預覽 (Open Graph) 精簡設定 -->
-    <meta name="description" content="數遊系校外參訪點名系統">
+    <!-- LINE / 社群連結預覽 (Open Graph) 社群卡片設定 -->
+    <meta name="description" content="數遊系11/12智冠校外參訪即時點名與回程離隊登記系統">
     <meta property="og:title" content="智冠校外參訪點名系統">
-    <meta property="og:description" content="數遊系校外參訪點名系統">
+    <meta property="og:description" content="數遊系11/12智冠校外參訪即時點名與回程離隊登記系統">
     <meta property="og:type" content="website">
+    <meta property="og:url" content="https://usc112520-coder.github.io/1112/">
     <meta property="og:site_name" content="智冠校外參訪點名系統">
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="智冠校外參訪點名系統">
-    <meta name="twitter:description" content="數遊系校外參訪點名系統">
+    <meta name="twitter:description" content="數遊系11/12智冠校外參訪即時點名與回程離隊登記系統">
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -86,49 +87,53 @@
         <!-- Role 1: Student Check-in Mode -->
         <main v-if="activeRole === 'student'" class="space-y-4">
             <!-- Student Search Card -->
-            <div class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 space-y-4">
+            <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/80 space-y-3">
+                <div class="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
+                    <span>請輸入您的完整姓名進行簽到</span>
+                    <span v-if="studentSearchInput.trim()" class="text-slate-400">系統比對中</span>
+                </div>
                 <div class="relative max-w-md mx-auto">
-                    <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-                    <input v-model="studentSearchInput" type="text" placeholder="請輸入姓名搜尋以進行簽到..." 
-                           class="w-full pl-11 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:border-slate-800 focus:ring-1 focus:ring-slate-800 transition outline-none">
+                    <i class="fa-solid fa-user-lock absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                    <input v-model="studentSearchInput" type="text" placeholder="請輸入完整姓名（姓名需完全一致）..." 
+                           class="w-full pl-11 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:border-slate-800 focus:ring-1 focus:ring-slate-800 transition outline-none">
                     <button v-if="studentSearchInput" @click="studentSearchInput = ''" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
                         <i class="fa-solid fa-xmark text-sm"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- Student Search Results List -->
+            <!-- Student Search Results / Cards List -->
             <div class="space-y-3">
-                <!-- No match state -->
-                <div v-if="studentSearchInput && searchedStudents.length === 0" class="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200 space-y-2">
+                <!-- No match state (only when query entered but non-matching) -->
+                <div v-if="studentSearchInput.trim() && searchedStudents.length === 0" class="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200 space-y-2">
                     <i class="fa-solid fa-user-slash text-2xl"></i>
-                    <p class="text-xs font-medium">找不到符合的成員資料，請確認姓名輸入是否正確</p>
+                    <p class="text-xs font-medium">找不到名單中為「{{ studentSearchInput }}」的成員，請確認姓名是否完全正確。</p>
                 </div>
 
-                <!-- Personal Search Results -->
+                <!-- Clean Card Layout for Student Matching Exact Name -->
                 <div v-for="student in searchedStudents" :key="student.id" 
                      class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/80 hover:border-slate-300 transition space-y-3">
                     
                     <div class="flex justify-between items-center border-b border-slate-100 pb-3">
                         <div class="flex items-center gap-3">
-                            <span class="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 font-bold flex items-center justify-center text-sm">
+                            <span class="w-10 h-10 rounded-xl bg-slate-900 text-white font-bold flex items-center justify-center text-sm shadow-sm">
                                 {{ student.name.charAt(0) }}
                             </span>
                             <div>
-                                <h3 class="text-sm font-bold text-slate-900">{{ student.name }}</h3>
-                                <p class="text-xs text-slate-500 font-medium">{{ student.className || '參訪成員' }}</p>
+                                <h3 class="text-base font-bold text-slate-900">{{ student.name }}</h3>
+                                <p class="text-xs text-slate-500 font-medium mt-0.5">{{ student.className || '參訪成員' }}</p>
                             </div>
                         </div>
 
                         <!-- Status Badges -->
                         <div class="flex items-center gap-1.5 flex-wrap justify-end">
                             <span :class="student.outboundStatus === '已上車' ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-600 border-slate-200'"
-                                  class="px-2 py-0.5 rounded-lg border text-[11px] font-medium flex items-center gap-1">
+                                  class="px-2.5 py-1 rounded-lg border text-[11px] font-medium flex items-center gap-1">
                                 <i :class="student.outboundStatus === '已上車' ? 'fa-solid fa-check text-emerald-400' : 'fa-regular fa-circle text-slate-400'"></i>
                                 去程: {{ student.outboundStatus }}
                             </span>
                             <span :class="student.returnStatus === '已完成' ? 'bg-emerald-800 text-white border-emerald-800' : 'bg-slate-100 text-slate-600 border-slate-200'"
-                                  class="px-2 py-0.5 rounded-lg border text-[11px] font-medium flex items-center gap-1">
+                                  class="px-2.5 py-1 rounded-lg border text-[11px] font-medium flex items-center gap-1">
                                 <i :class="student.returnStatus === '已完成' ? 'fa-solid fa-check text-emerald-300' : 'fa-regular fa-circle text-slate-400'"></i>
                                 回程: {{ student.returnStatus === '已完成' ? (student.returnIntent === '自行離開' ? '已離隊' : '已上車') : '未簽到' }}
                             </span>
@@ -142,7 +147,7 @@
                             <span class="text-xs font-semibold text-slate-700">1. 去程點名：</span>
                             <button @click="toggleOutbound(student)" 
                                     :class="student.outboundStatus === '已上車' ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'bg-slate-900 text-white hover:bg-slate-800'"
-                                    class="px-3.5 py-1.5 rounded-lg font-medium text-xs transition flex items-center gap-1.5">
+                                    class="px-3.5 py-1.5 rounded-lg font-medium text-xs transition flex items-center gap-1.5 shadow-sm">
                                 <i :class="student.outboundStatus === '已上車' ? 'fa-solid fa-rotate-left' : 'fa-solid fa-check'"></i>
                                 <span>{{ student.outboundStatus === '已上車' ? '取消去程簽到' : '去程點名上車' }}</span>
                             </button>
@@ -294,7 +299,7 @@
                         </button>
                     </div>
 
-                    <!-- Search Input -->
+                    <!-- Search Input for Teacher -->
                     <div class="relative w-full sm:w-60">
                         <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                         <input v-model="teacherSearchInput" type="text" placeholder="搜尋班級或姓名..." 
@@ -413,7 +418,7 @@
             </div>
         </div>
 
-        <!-- Modal 1: Teacher Auth Modal (Hidden password text) -->
+        <!-- Modal 1: Teacher Auth Modal -->
         <div v-if="showAuthModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div class="bg-white rounded-2xl max-w-xs w-full p-6 shadow-xl space-y-4 border border-slate-100">
                 <div class="text-center space-y-1">
@@ -649,11 +654,10 @@
         const QR_MODE_KEY = 'fieldtrip_qr_mode_v1';
         const CUSTOM_QR_URL_KEY = 'fieldtrip_custom_qr_url_v1';
 
-        // 💡 直接讀取的 Google Apps Script 發布網址（請將您的 Web App URL 貼在下方引號中）：
-        // 只要填寫此處，任何裝置開啟網頁時都會直接自動讀取與更新試算表資料，免手動設定！
+        // 💡 預設存取的 Google Apps Script 發布網址
         const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbx3QfTgHE-C9tG-_AqvG0UjXj4W0cM2INjDP_DWZx2fGxnk6b6NcCSuE5M5sZk6MrYM2Q/exec';
 
-        // 指定目標簽到網址
+        // 💡 乾淨的目標簽到網址 (不帶任何複雜參數)
         const TARGET_CHECKIN_URL = 'https://usc112520-coder.github.io/1112/';
 
         createApp({
@@ -708,16 +712,10 @@
                 const pastedText = ref('');
                 const newPerson = ref({ className: '', name: '' });
 
-                // 動態產生包含試算表連線參數的完整網址（確保手機掃碼後自動連線）
-                const currentSiteUrl = computed(() => {
-                    if (gasUrl.value) {
-                        const separator = TARGET_CHECKIN_URL.includes('?') ? '&' : '?';
-                        return `${TARGET_CHECKIN_URL}${separator}gasUrl=${encodeURIComponent(gasUrl.value)}`;
-                    }
-                    return TARGET_CHECKIN_URL;
-                });
+                // 乾淨網址
+                const currentSiteUrl = computed(() => TARGET_CHECKIN_URL);
 
-                // 自動產生包含試算表連線參數的 QR Code
+                // 自動產生乾淨網址的 QR Code
                 const qrImageUrl = computed(() => {
                     const targetUrl = encodeURIComponent(currentSiteUrl.value);
                     return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${targetUrl}`;
@@ -776,9 +774,8 @@
                         el.style.left = '-9999px';
                         document.body.appendChild(el);
                         el.select();
-                        document.execCommand('copy');
-                        document.body.removeChild(el);
-                        showToast('已複製簽到網址！');
+                        document.execCommand('copy'); document.body.removeChild(el);
+                        showToast('已複製乾淨簽到網址！');
                     } catch (e) {
                         showToast('請手動選取網址進行複製');
                     }
@@ -805,7 +802,6 @@
                 const fetchFromGas = async () => {
                     if (!gasUrl.value || isPollingPaused) return false;
                     try {
-                        // 加入時間戳記 _t 避免手機瀏覽器 (LINE/Safari) 強烈快取舊資料
                         const separator = gasUrl.value.includes('?') ? '&' : '?';
                         const requestUrl = `${gasUrl.value}${separator}_t=${Date.now()}`;
                         const res = await fetch(requestUrl);
@@ -896,17 +892,11 @@
                     showToast(returnControl.value.enabled ? '已開啟學生回程登記' : '已關閉學生回程登記');
                 };
 
+                // 💡 學生端比對邏輯：必須完全相符才顯示資料
                 const searchedStudents = computed(() => {
                     const q = studentSearchInput.value.trim().toLowerCase();
                     if (!q) return [];
-                    return roster.value.filter(s => 
-                        (s.name && s.name.toLowerCase().includes(q)) || 
-                        (s.className && s.className.toLowerCase().includes(q))
-                    ).sort((a, b) => {
-                        const classCompare = (a.className || '').localeCompare(b.className || '', 'zh-TW', { numeric: true });
-                        if (classCompare !== 0) return classCompare;
-                        return (a.name || '').localeCompare(b.name || '', 'zh-TW', { numeric: true });
-                    });
+                    return roster.value.filter(s => s.name && s.name.trim().toLowerCase() === q);
                 });
 
                 const filteredTeacherRoster = computed(() => {
@@ -1212,26 +1202,17 @@
 
                 onMounted(async () => {
                     try {
-                        // 1. 自動讀取 Apps Script 網址：優先使用程式內建 DEFAULT_GAS_URL，確保所有裝置開啟時免手動設定
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const urlGasParam = urlParams.get('gasUrl') || urlParams.get('gas');
                         const savedGasUrl = localStorage.getItem(GAS_URL_KEY);
 
-                        if (DEFAULT_GAS_URL && DEFAULT_GAS_URL.trim() !== '' && DEFAULT_GAS_URL !== 'https://script.google.com/macros/s/YOUR_APPS_SCRIPT_ID/exec') {
+                        if (DEFAULT_GAS_URL && DEFAULT_GAS_URL.trim() !== '') {
                             gasUrl.value = DEFAULT_GAS_URL.trim();
                             gasUrlInput.value = DEFAULT_GAS_URL.trim();
                             localStorage.setItem(GAS_URL_KEY, DEFAULT_GAS_URL.trim());
-                        } else if (urlGasParam) {
-                            const decodedGasUrl = decodeURIComponent(urlGasParam);
-                            gasUrl.value = decodedGasUrl;
-                            gasUrlInput.value = decodedGasUrl;
-                            localStorage.setItem(GAS_URL_KEY, decodedGasUrl);
                         } else if (savedGasUrl) {
                             gasUrl.value = savedGasUrl;
                             gasUrlInput.value = savedGasUrl;
                         }
 
-                        // 2. 讀取本機快取與設定
                         const savedSurvey = localStorage.getItem(SURVEY_KEY);
                         if (savedSurvey !== null && savedSurvey !== '') {
                             surveyUrl.value = savedSurvey;
@@ -1259,13 +1240,12 @@
                             roster.value = [...defaultRoster];
                         }
 
-                        // 3. 所有裝置開啟時，第一時間直接從 Google Apps Script 獲取最新資料並自動開啟輪詢
                         if (gasUrl.value) {
                             isLoadingData.value = true;
                             const success = await fetchFromGas();
                             isLoadingData.value = false;
                             if (success) {
-                                showToast('已直接從 Google 試算表同步最新點名資料');
+                                showToast('已同步 Google 試算表最新點名資料');
                             }
                             startGasPolling();
                         }
