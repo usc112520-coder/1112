@@ -270,7 +270,7 @@
                             <span>{{ gasUrl || supabaseConfig.url ? '🟢 雲端同步中' : '📊 雲端連線設定' }}</span>
                         </button>
                         <button @click="openReturnControlModal" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-xs transition flex items-center gap-1.5">
-                            <i class="fa-solid fa-clock"></i> 回程登記開放
+                            <i class="fa-solid fa-clock"></i> 回程登記開放 ({{ isReturnOpen ? '已開放' : '已關閉' }})
                         </button>
                         <button @click="showImportModal = true" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-xs transition flex items-center gap-1.5">
                             <i class="fa-solid fa-file-import"></i> 匯入名單
@@ -535,7 +535,7 @@
                     <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                         <div class="space-y-0.5">
                             <span class="font-bold text-slate-800 block text-sm">開放學生登記回程</span>
-                            <span class="text-[11px] text-slate-500 block">開啟後學生即可進行回程搭車與離隊簽到</span>
+                            <span class="text-[11px] text-slate-500 block">開啟後全裝置學生即可進行回程搭車與離隊簽到</span>
                         </div>
                         <input type="checkbox" v-model="returnControlInput.enabled" class="w-5 h-5 accent-slate-900 rounded cursor-pointer">
                     </div>
@@ -543,7 +543,7 @@
 
                 <div class="flex gap-2 pt-1">
                     <button @click="showReturnControlModal = false" class="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-medium">取消</button>
-                    <button @click="saveReturnControl" class="flex-1 py-2 bg-slate-900 text-white rounded-xl text-xs font-medium hover:bg-slate-800">儲存設定</button>
+                    <button @click="saveReturnControl" class="flex-1 py-2 bg-slate-900 text-white rounded-xl text-xs font-medium hover:bg-slate-800">儲存並同步全裝置</button>
                 </div>
             </div>
         </div>
@@ -657,7 +657,7 @@
         // 💡 預設存取的 Google Apps Script 發布網址
         const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbx3QfTgHE-C9tG-_AqvG0UjXj4W0cM2INjDP_DWZx2fGxnk6b6NcCSuE5M5sZk6MrYM2Q/exec';
 
-        // 💡 乾淨的目標簽到網址 (不帶任何複雜參數)
+        // 💡 乾淨的目標簽到網址
         const TARGET_CHECKIN_URL = 'https://usc112520-coder.github.io/1112/';
 
         createApp({
@@ -680,7 +680,7 @@
                 const isLoadingData = ref(false);
 
                 const teacherPinInput = ref('');
-                const surveyUrl = ref('https://forms.gle/sample');
+                const surveyUrl = ref('https://forms.gle/jYfohfqJut95wbnC7');
                 const surveyUrlInput = ref('');
                 const returnControl = ref({ enabled: true });
                 const returnControlInput = ref({ enabled: true });
@@ -799,6 +799,7 @@
                     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
                 };
 
+                // 💡 雲端抓取資料（含學生名單與全裝置回程開放狀態同步）
                 const fetchFromGas = async () => {
                     if (!gasUrl.value || isPollingPaused) return false;
                     try {
@@ -808,7 +809,31 @@
                         if (res.ok) {
                             const data = await res.json();
                             if (Array.isArray(data)) {
-                                roster.value = data;
+                                // 檢查是否有 _CONFIG_ 系統設定筆數
+                                const configItem = data.find(s => s.id === '_CONFIG_' || s.name === '_CONFIG_');
+                                if (configItem) {
+                                    try {
+                                        const parsedNote = JSON.parse(configItem.returnNote || '{}');
+                                        if (typeof parsedNote.returnOpen !== 'undefined') {
+                                            returnControl.value.enabled = !!parsedNote.returnOpen;
+                                        }
+                                    } catch(e) {
+                                        if (typeof configItem.enabled !== 'undefined') {
+                                            returnControl.value.enabled = !!configItem.enabled;
+                                        }
+                                    }
+                                }
+                                // 過濾系統設定列，保留真實學生名單
+                                roster.value = data.filter(s => s.id !== '_CONFIG_' && s.name !== '_CONFIG_');
+                                saveLocalStorage();
+                                return true;
+                            } else if (typeof data === 'object' && data !== null) {
+                                if (typeof data.returnOpen !== 'undefined') {
+                                    returnControl.value.enabled = !!data.returnOpen;
+                                }
+                                if (Array.isArray(data.roster)) {
+                                    roster.value = data.roster;
+                                }
                                 saveLocalStorage();
                                 return true;
                             }
@@ -875,6 +900,7 @@
                 const saveLocalStorage = () => {
                     try {
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(roster.value));
+                        localStorage.setItem(RETURN_CONTROL_KEY, JSON.stringify(returnControl.value));
                     } catch (e) {
                         console.error('Failed to save to localStorage', e);
                     }
@@ -885,14 +911,25 @@
                     showReturnControlModal.value = true;
                 };
 
+                // 💡 儲存並將回程開放狀態推送到全裝置雲端同步
                 const saveReturnControl = () => {
                     returnControl.value = { ...returnControlInput.value };
                     localStorage.setItem(RETURN_CONTROL_KEY, JSON.stringify(returnControl.value));
                     showReturnControlModal.value = false;
-                    showToast(returnControl.value.enabled ? '已開啟學生回程登記' : '已關閉學生回程登記');
+                    
+                    // 發送雲端廣播設定
+                    postToGas({ 
+                        action: 'update_return_control', 
+                        id: '_CONFIG_',
+                        className: '_CONFIG_',
+                        name: '_CONFIG_',
+                        returnNote: JSON.stringify({ returnOpen: returnControl.value.enabled })
+                    });
+
+                    showToast(returnControl.value.enabled ? '已開啟學生回程登記（同步全裝置）' : '已關閉學生回程登記（同步全裝置）');
                 };
 
-                // 💡 學生端比對邏輯：必須完全相符才顯示資料
+                // 學生端比對邏輯：必須完全相符才顯示資料
                 const searchedStudents = computed(() => {
                     const q = studentSearchInput.value.trim().toLowerCase();
                     if (!q) return [];
